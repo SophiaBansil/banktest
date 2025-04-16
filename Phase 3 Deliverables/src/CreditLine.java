@@ -4,6 +4,7 @@ public class CreditLine {
 	
 	public CreditLine(float limit) {
 		super();
+		this.creditLimit = limit;
 	}
 	public void setCreditLimit(float newLimit) {
 		this.creditLimit = newLimit;
