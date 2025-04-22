@@ -1,0 +1,17 @@
+package bank;
+
+public enum TYPE {
+	LOGIN,
+    LOGOUT_ATM,
+    LOGOUT_CLIENT,
+    LOGOUT_TELLER,
+    SUCCESS,
+    FAILURE,
+    LOAD_ACCOUNT,
+    LOAD_PROFILE,
+    SAVE_PROFILE,
+    DELETE_ACCOUNT,
+    DELETE_PROFILE,
+    TRANSACTION
+
+}
