@@ -1,38 +1,38 @@
-package bank;
-
 import java.io.Serializable;
 
-public class Message implements Serializable {
+public abstract class Message implements Serializable {
+	private static final long serialVersionUID = 1L;
+	public enum TYPE {
+		LOGIN_CLIENT,
+		LOGIN_TELLER,
+		LOGOUT_ATM,
+	    LOGOUT_CLIENT,
+	    LOGOUT_TELLER,
+	    SUCCESS,
+	    FAILURE,
+	    LOAD_ACCOUNT,
+	    LOAD_PROFILE,
+	    SAVE_PROFILE,
+	    SAVE_ACCOUNT,
+	    SHARE_ACCOUNT,
+	    DELETE_ACCOUNT,
+	    DELETE_PROFILE,
+	    TRANSACTION,
+	}
+	
+	private final TYPE type;
+    private final SessionInfo session;
 
-    private final String id;
-    private final String text;
-    private final TYPE type;
-
-    public Message(String id, String text, TYPE type) {
-        this.id = id;
-        this.text = text;
+    protected Message(TYPE type, SessionInfo session) {
         this.type = type;
-    }
-
-    public String getID() {
-        return id;
-    }
-
-    public String getText() {
-        return text;
+        this.session = session;
     }
 
     public TYPE getType() {
         return type;
     }
 
-    @Override
-    public String toString() {
-        return "Message{" +
-                "id='" + id + '\'' +
-                ", type=" + type +
-                ", text='" + text + '\'' +
-                '}';
+    public SessionInfo getSession() {
+        return session;
     }
 }
-

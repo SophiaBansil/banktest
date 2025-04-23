@@ -21,12 +21,15 @@ public class ClientHandler implements Runnable {
         private final BlockingQueue<Message> outgoing = new LinkedBlockingQueue<>();
 
         // Thread and control flag
-        private volatile boolean running = true; // checks for if clientHandler is running
+        private volatile boolean running; // checks for if clientHandler is running
+        private volatile boolean authenticated;
         private Thread reader, writer;
 
         public ClientHandler(Socket socket, CentralServer server) {
             this.socket = socket;
             this.server = server;
+            running = true;
+            setAuthenticated(false);
         }
 
         @Override
@@ -119,6 +122,14 @@ public class ClientHandler implements Runnable {
         	try { reader.join(); } catch (InterruptedException ignored) {}
             try { writer.join(); } catch (InterruptedException ignored) {}
         }
+
+		public boolean isAuthenticated() {
+			return authenticated;
+		}
+
+		public void setAuthenticated(boolean authenticated) {
+			this.authenticated = authenticated;
+		}
     }
 
 

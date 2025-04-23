@@ -1,12 +1,10 @@
-
 public class ClientProfile {
 	private String username;
 	private String password;
 	private String phone;
 	private String address;
 	private String legalName;
-	private boolean isOpen;
-	private Account[] accounts;
+	private String[] account_ids;
 	
 	public ClientProfile(String username, String password, String phone, String address, String legalName) {
 		this.username = username;
@@ -15,41 +13,41 @@ public class ClientProfile {
 		this.address = address;
 		this.legalName = legalName;
 	}
-	public void addAccount(Account acc) {
-		if (accounts[accounts.length - 1] != null) {
-			this.accounts = increaseArray(accounts);
+	public void addAccountID(String id) {
+		if (account_ids[account_ids.length - 1] != null) {
+			this.account_ids = increaseArray(account_ids);
 		}	
-		for (int i = 0; i < accounts.length; i++) {
-			if (accounts[i] == null) {
-				accounts[i] = acc;
+		for (int i = 0; i < account_ids.length; i++) {
+			if (account_ids[i] == null) {
+				account_ids[i] = id;
 			}
-			else if (acc.getID().compareTo(accounts[i].getID()) < 0) {
-				for (int k = accounts.length - 1; k > i; k--) {
-					accounts[k] = accounts[k-1]; 
+			else if (id.compareTo(account_ids[i]) < 0) {
+				for (int k = account_ids.length - 1; k > i; k--) {
+					account_ids[k] = account_ids[k-1]; 
 				}
-				accounts[i] = acc;
+				account_ids[i] = id;
 				return;
 			}
 		}
 	}
-	public void removeAccount(String id) {
-		for (int i = 0; i < accounts.length; i++) {
-			if (accounts[i] == null) {
+	public void removeAccountID(String id) {
+		for (int i = 0; i < account_ids.length; i++) {
+			if (account_ids[i] == null) {
 				return;
 			}
-			else if (id.equals(accounts[i].getID())) {
-				for (int k = i; k < accounts.length - 1; k++) {
-					accounts[k] = accounts[k+1]; 
+			else if (id.equals(account_ids[i])) {
+				for (int k = i; k < account_ids.length - 1; k++) {
+					account_ids[k] = account_ids[k+1]; 
 				}
-				accounts[accounts.length - 1] = null;
+				account_ids[account_ids.length - 1] = null;
 				return;
 			}
 		}
 	}
-	public Account getAccount(String id) {
-		for (int i = 0; i < accounts.length; i++) {
-			if (accounts[i].getID().equals(id)) {
-				return accounts[i];
+	public String getAccountID(String id) {
+		for (int i = 0; i < account_ids.length; i++) {
+			if (account_ids[i].equals(id)) {
+				return account_ids[i];
 			}
 		}
 		return null;
@@ -69,12 +67,6 @@ public class ClientProfile {
 	public String getLegalName() {
 		return legalName;
 	}
-	public boolean isOpen() {
-		return isOpen;
-	}
-	public void setOpen(boolean isOpen) {
-		this.isOpen = isOpen;
-	}
 	public void setUsername(String username) {
 		this.username = username;
 	}
@@ -90,9 +82,6 @@ public class ClientProfile {
 	public void setLegalName(String legalName) {
 		this.legalName = legalName;
 	}
-	public void setStatus(boolean status) {
-		setOpen(status);
-	}
 	public String toString() {
 		StringBuilder sb = new StringBuilder();
 		
@@ -106,14 +95,13 @@ public class ClientProfile {
 		sb.append("~");
 		sb.append(System.lineSeparator());
 		
-		for (Account acc : accounts) {
-			sb.append(acc.toString());
+		for (String accID : account_ids) {
+			sb.append(accID.toString());
 		}
 		return sb.toString();
 	}
-	
-	private static Account[] increaseArray(Account[] arr) {
-		Account[] newArr = new Account[arr.length + 7];
+	private static String[] increaseArray(String[] arr) {
+		String[] newArr = new String[arr.length + 7];
 		//Copy every element in old array into the same index of new array
 		for (int i = 0; i < arr.length; i++) {
 			newArr[i] = arr[i];
