@@ -1,37 +1,29 @@
+import java.math.BigDecimal;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
 public class Transaction {
+	public enum OPERATION {
+		WITHDRAW,
+		DEPOSIT
+	}
 	private Date created;
-	private float amount;
-	private String note;
+	private BigDecimal amount;
+	private OPERATION op;
 	
-	public Transaction(float amount, String note) {
+	public Transaction(double amount, OPERATION op) {
 		this.created = new Date();
+		this.amount = BigDecimal.valueOf(amount);
 	}
 	public String getDate() {
 		SimpleDateFormat format = new SimpleDateFormat("MM/dd/yyyy");
 		String formatDate = format.format(created);
 		return formatDate;
 	}
-	public float getAmount() {
+	public BigDecimal getAmount() {
 		return amount;
 	}
-	public String getNote() {
-		return note;
-	}
-	public String toString() {
-		StringBuilder sb = new StringBuilder();
-		sb.append("CLIENT|");
-		sb.append(getDate()).append("|");
-		sb.append(getAmount()).append("|");
-		if (note != null) {
-			sb.append(note);
-		}	
-		
-		sb.append("~");
-		sb.append(System.lineSeparator());
-		
-		return sb.toString();
+	public OPERATION getOperation() {
+		return op;
 	}
 }
