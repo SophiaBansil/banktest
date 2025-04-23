@@ -1,14 +1,14 @@
 import java.util.UUID;
 
-public class SessionInfo {
+public final class SessionInfo {
 	public enum ROLE {
 		CLIENT,
 		TELLER
 	}
-	private String username;
-	private String session_id;
-	private ROLE role;
-	long lastActive;
+	private final String username;
+	private final String session_id;
+	private final ROLE role;
+	private long lastActive;
 	
 	public SessionInfo() {
 		this.username = null;
@@ -32,8 +32,8 @@ public class SessionInfo {
 	public ROLE getRole() {
 		return role;
 	}
-	public void setLastActive(long lastActive) {
-        this.lastActive = lastActive;
+	public void setLastActive(long timeStamp) {
+        this.lastActive = timeStamp;
     }
     public long getLastActive() {
         return lastActive;

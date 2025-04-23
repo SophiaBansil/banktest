@@ -67,6 +67,9 @@ public class ClientProfile {
 	public String getLegalName() {
 		return legalName;
 	}
+	public String[] getAccountIDs() {
+		return account_ids;
+	}
 	public void setUsername(String username) {
 		this.username = username;
 	}
@@ -81,24 +84,6 @@ public class ClientProfile {
 	}
 	public void setLegalName(String legalName) {
 		this.legalName = legalName;
-	}
-	public String toString() {
-		StringBuilder sb = new StringBuilder();
-		
-		sb.append("CLIENTPROFILE|");
-		sb.append(getUsername()).append("|");
-		sb.append(getPassword()).append("|");
-		sb.append(getPhone()).append("|");
-		sb.append(getAddress()).append("|");
-		sb.append(getLegalName());
-		
-		sb.append("~");
-		sb.append(System.lineSeparator());
-		
-		for (String accID : account_ids) {
-			sb.append(accID.toString());
-		}
-		return sb.toString();
 	}
 	private static String[] increaseArray(String[] arr) {
 		String[] newArr = new String[arr.length + 7];

@@ -12,7 +12,10 @@ public class SavingAccount extends Account {
 	public void setWithdrawLimit(int limit) {
 		this.withdrawLimit = limit;
 	}
-	private int getWithdrawLimit() {
+	public int getWithdrawLimit() {
 		return withdrawLimit;
+	}
+	public int getWithdrawCount() {
+		return withdrawCount;
 	}
 }

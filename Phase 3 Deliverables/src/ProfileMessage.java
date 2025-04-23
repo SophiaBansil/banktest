@@ -8,6 +8,7 @@ public final class ProfileMessage extends Message {
 	private final String legalName;
 	private final String[] account_ids;
 	
+	// Constructor for requesting Profile Information
 	public ProfileMessage(TYPE type, SessionInfo session) {
 		super(type, session);
 		this.username = "";
@@ -18,6 +19,7 @@ public final class ProfileMessage extends Message {
 		this.account_ids = null;
     }
 	
+	// Constructor for sending Profile Information
     public ProfileMessage(TYPE type, 
     		SessionInfo session, 
     		String username, 

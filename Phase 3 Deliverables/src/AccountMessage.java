@@ -17,6 +17,18 @@ public final class AccountMessage extends Message {
     private final int withdrawalLimit; // Only for savings
     private final float creditLimit;    // Only for line of credit
 
+    // Constructor for Requests
+    public AccountMessage(TYPE type, SessionInfo session, String account_id) {
+        super(type, session);
+        this.account_type = ACCOUNT_TYPE.CHECKING;
+        this.id = account_id;
+		this.balance = 0;
+		this.transactionHistory = null;
+		this.withdrawCount = 0;
+		this.withdrawalLimit = 0;
+		this.creditLimit = 0;
+    }
+    
     // Constructor for Checking
     public AccountMessage(TYPE type, SessionInfo session, String id, float balance, List<Transaction> transactionHistory) {
         super(type, session);

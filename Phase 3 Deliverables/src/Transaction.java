@@ -11,7 +11,7 @@ public class Transaction {
 	private BigDecimal amount;
 	private OPERATION op;
 	
-	public Transaction(double amount, OPERATION op) {
+	public Transaction( Date date, float amount, OPERATION op) {
 		this.created = new Date();
 		this.amount = BigDecimal.valueOf(amount);
 	}
