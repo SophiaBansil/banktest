@@ -7,15 +7,15 @@ public final class AccountMessage extends Message {
 		SAVING,
 		CREDIT_LINE
 	}
-	private ACCOUNT_TYPE account_type;
-    private String id;
-    private float balance;
-    private List<Transaction> transactionHistory;
+	private final ACCOUNT_TYPE account_type;
+    private final String id;
+    private final float balance;
+    private final List<Transaction> transactionHistory;
 
     // Type-specific (optional) fields
-    private int withdrawCount; // Only for savings
-    private int withdrawalLimit; // Only for savings
-    private float creditLimit;    // Only for line of credit
+    private final int withdrawCount; // Only for savings
+    private final int withdrawalLimit; // Only for savings
+    private final float creditLimit;    // Only for line of credit
 
     // Constructor for Checking
     public AccountMessage(TYPE type, SessionInfo session, String id, float balance, List<Transaction> transactionHistory) {
@@ -24,6 +24,9 @@ public final class AccountMessage extends Message {
         this.id = id;
         this.balance = balance;
         this.transactionHistory = transactionHistory;
+		this.withdrawCount = 0;
+		this.withdrawalLimit = 0;
+		this.creditLimit = 0;
     }
 
     // Constructor for Savings
@@ -36,6 +39,7 @@ public final class AccountMessage extends Message {
         this.transactionHistory = transactionHistory;
         this.withdrawCount = withdrawCount;
         this.withdrawalLimit = withdrawalLimit;
+		this.creditLimit = 0;
     }
 
     // Constructor for Line of Credit
@@ -46,15 +50,13 @@ public final class AccountMessage extends Message {
         this.id = id;
         this.balance = balance;
         this.transactionHistory = transactionHistory;
+		this.withdrawCount = 0;
+		this.withdrawalLimit = 0;
         this.creditLimit = creditLimit;
     }
 
 	public ACCOUNT_TYPE getAccount_type() {
 		return account_type;
-	}
-
-	public void setAccount_type(ACCOUNT_TYPE account_type) {
-		this.account_type = account_type;
 	}
 
 	public String getId() {
