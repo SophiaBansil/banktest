@@ -8,22 +8,26 @@ public class ConnectionHandler implements Runnable {
     private final Socket clientSocket;
     private ObjectInputStream in;
     private ObjectOutputStream out;
+ // communicates with LoginApplication 
+    private LoginApplication loginApp; 
 
     public ConnectionHandler(Socket socket) {
         this.clientSocket = socket;
     }
+    
+  //setter for LoginApplication
+    public void setLoginApplication(LoginApplication app) { 
+        this.loginApp = app;
+    }
 
-    @Override
+    
     public void run() {
         try {
-            // Important: ObjectOutputStream must be created before ObjectInputStream!
             out = new ObjectOutputStream(clientSocket.getOutputStream());
-            out.flush(); // flush header
-
+            out.flush();
             in = new ObjectInputStream(clientSocket.getInputStream());
 
             while (true) {
-                // Read incoming message
                 Object obj = in.readObject();
                 if (obj instanceof Message) {
                     Message msg = (Message) obj;
@@ -35,6 +39,10 @@ public class ConnectionHandler implements Runnable {
 
         } catch (IOException | ClassNotFoundException e) {
             System.err.println("Connection error: " + e.getMessage());
+            //error handler callback
+            if (loginApp != null) {
+                loginApp.handleConnectionError("Connection lost. Please restart the app.");
+            }
         } finally {
             try {
                 if (in != null) in.close();
@@ -83,13 +91,16 @@ public class ConnectionHandler implements Runnable {
             case LOGOUT_CLIENT:
             case LOGOUT_TELLER:
                 System.out.println("Logout received for ID: " + id);
+                //session timeout handling
+                if (type == TYPE.LOGOUT_CLIENT && loginApp != null) {
+                    loginApp.handleSessionTimeout();
+                }
                 break;
             default:
                 System.out.println("Unhandled message type: " + type);
         }
     }
 
-    // Send a Message to the server
     public void send(Message msg) {
         try {
             out.writeObject(msg);
@@ -98,4 +109,4 @@ public class ConnectionHandler implements Runnable {
             System.err.println("Error sending message: " + e.getMessage());
         }
     }
-}
+} 
