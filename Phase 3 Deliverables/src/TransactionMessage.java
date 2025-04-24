@@ -6,14 +6,17 @@ public final class TransactionMessage extends Message {
 		WITHDRAW,
 		DEPOSIT
 	}
-	private Date created;
-	private String amount;
-	private OPERATION op;
+	private final Date created;
+	private final String amount;
+	private final OPERATION op;
+	private final String accountID;
 	
-	public TransactionMessage(SessionInfo session_id, String amount) {
+	public TransactionMessage(SessionInfo session_id, String amount, OPERATION op, String accountID) {
 		super(Message.TYPE.TRANSACTION, session_id);
 		this.amount = amount;
 		this.created = new Date();
+		this.op = op;
+		this.accountID = accountID;
 	}
 	public Date getDate() {
 		return created;
@@ -23,5 +26,8 @@ public final class TransactionMessage extends Message {
 	}
 	public OPERATION getOperation() {
 		return op;
+	}
+	public String getAccountID() {
+		return accountID;
 	}
 }

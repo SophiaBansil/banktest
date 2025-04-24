@@ -1,4 +1,5 @@
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.HashMap;
@@ -113,6 +114,9 @@ public class CentralServer {
 				case SAVE_ACCOUNT:
 					handleSaveAccount((AccountMessage) msg, handler);
 					break;
+				case DELETE_ACCOUNT:
+					handleDeleteAccount((AccountMessage) msg, handler);
+					break;
 				case SHARE_ACCOUNT:
 					handleShareAccount((AccountMessage) msg, handler);
 					break;
@@ -175,9 +179,6 @@ public class CentralServer {
 				case LOGOUT_CLIENT:
 					handleClientLogout((LogoutMessage) msg, handler);
 					break;
-				case LOGOUT_ATM:
-					handleATMLogout((LogoutMessage) msg, handler);
-					break;
 				default:
 					break;
 			}
@@ -194,32 +195,105 @@ public class CentralServer {
 		}
 	}
 	
-	 private void handleExitAccount(AccountMessage msg, ClientHandler handler) {
-			// TODO Auto-generated method stub
-			
-		}
+	private void handleTransaction(TransactionMessage msg, ClientHandler handler) {
+	    SessionInfo session = msg.getSession();
+	    String accountID = msg.getAccountID(); // Assuming you meant account ID, not amount
+	    String username = session.getUsername();
+
+	    if (accountID == null || username == null) {
+	        handler.sendMessage(new FailureMessage("Missing session information."));
+	        return;
+	    }
+
+	    BigDecimal amount;
+	    try {
+	        amount = new BigDecimal(msg.getAmount());
+	    } catch (NumberFormatException e) {
+	        handler.sendMessage(new FailureMessage("Invalid amount format."));
+	        return;
+	    }
+
+	    Transaction.OPERATION operation = Transaction.OPERATION.valueOf(msg.getOperation().name());
+	    Transaction trans = new Transaction(amount.toPlainString(), operation);
+
+	    ReentrantLock lock = accountLocks.get(accountID);
+	    if (lock == null || !lock.isHeldByCurrentThread()) {
+	        handler.sendMessage(new FailureMessage("You are not authorized to edit this account."));
+	        return;
+	    }
+
+	    try {
+	        Account account = accountDatabase.get(accountID);
+	        if (account == null) {
+	            handler.sendMessage(new FailureMessage("Account not found."));
+	            return;
+	        }
+
+	        try {
+	            account.addTransaction(trans);
+	            handler.sendMessage(new SuccessMessage("Transaction applied successfully."));
+	        } catch (IllegalArgumentException | IllegalStateException e) {
+	            handler.sendMessage(new FailureMessage(e.getMessage()));
+	        }
+
+	    } finally {
+	        lock.unlock();
+	    }
+	}
 
 	private void handleExitProfile(ProfileMessage msg, ClientHandler handler) {
-		// TODO Auto-generated method stub
-		
+		SessionInfo session = msg.getSession();
+
+		String username = session.getUsername();
+		if (username == null) return;
+
+		// Unlock the profile if this thread holds the lock
+		ReentrantLock profileLock = profileLocks.get(username);
+		if (profileLock != null && profileLock.isHeldByCurrentThread()) {
+			profileLock.unlock();
+		}
+
+		handler.sendMessage(new SuccessMessage(
+			"Profile lock released successfully."
+		));
 	}
 
 	private void handleDeleteProfile(ProfileMessage msg, ClientHandler handler) {
-		// TODO Auto-generated method stub
+		SessionInfo session = msg.getSession();
 		
-	}
+		String username = session.getUsername();
+		if (username == null) return;
 
-	private void handleTransaction(TransactionMessage msg, ClientHandler handler) {
-		// TODO Auto-generated method stub
-		
+		// Validate credentials
+		ClientProfile profile = clientDatabase.get(username);
+		if (profile == null || !profile.getPassword().equals(msg.getPassword())) {
+			handler.sendMessage(new FailureMessage("Invalid credentials."));
+			return;
+		}
+
+		// Lock profile
+		ReentrantLock plock = profileLocks.get(username);
+		if (plock == null || !plock.isHeldByCurrentThread()) {
+		    handler.sendMessage(new FailureMessage("You are not authorized to delete this account."));
+		    return;
+		}
+
+		try {
+			// Remove the profile
+			clientDatabase.remove(username);
+			profileLocks.remove(username); // remove lock from map
+
+			handler.sendMessage(new SuccessMessage("Profile deleted successfully."));
+		} finally {
+			// Always unlock even if an error occurs
+			if (plock.isHeldByCurrentThread()) {
+				plock.unlock();
+			}
+		}
 	}
 
 	private void handleSaveProfile(ProfileMessage msg, ClientHandler handler) {
 		SessionInfo session = msg.getSession(); 
-	    if (session == null || session.getRole() != SessionInfo.ROLE.TELLER) {
-	        handler.sendMessage(new FailureMessage("Unauthorized access."));
-	        return;
-	    }
 
 	    String username = session.getUsername();
 	    ClientProfile current = clientDatabase.get(username);
@@ -231,7 +305,7 @@ public class CentralServer {
 	    // Check the lock (this ensures only one active editor)
 	    ReentrantLock lock = profileLocks.get(username);
 	    if (lock == null || !lock.isHeldByCurrentThread()) {
-	        handler.sendMessage(new FailureMessage("Profile not locked for editing."));
+	        handler.sendMessage(new FailureMessage("You do not own the profile lock."));
 	        return;
 	    }
 
@@ -240,6 +314,10 @@ public class CentralServer {
 	    current.setAddress(msg.getAddress());
 	    current.setLegalName(msg.getLegalName());
 	    // You can add password change logic if needed
+	    if (session.getRole() == SessionInfo.ROLE.TELLER) {
+	    	current.setUsername(username);
+	    	current.setPassword(msg.getPassword());
+	    }
 
 	    handler.sendMessage(new SuccessMessage("Profile saved successfully."));
 	}
@@ -353,9 +431,126 @@ public class CentralServer {
 	    handler.sendMessage(accountMsg);
 	}
 
-	private void handleSaveAccount(Message msg, ClientHandler handler) {
-		// TODO Auto-generated method stub
+	private void handleSaveAccount(AccountMessage msg, ClientHandler handler) {
+		SessionInfo session = msg.getSession();
+		String username = session.getUsername();
+		String accountID = msg.getID();
 		
+		// Step 1. Check account exists in database
+	    Account account = accountDatabase.get(accountID);
+	    if (account == null) {
+	        handler.sendMessage(new FailureMessage("Account not found."));
+	        return;
+	    }
+	    
+	    // Step 2: Check client profile owns account
+	    if (clientDatabase.get(username).getAccountID(accountID) == null) {
+	    	handler.sendMessage(new FailureMessage("Unauthorized Account Access."));
+	        return;
+	    }
+		
+		// Step 3: Validate session and lock
+		ReentrantLock lock = accountLocks.get(accountID);
+		if (lock == null || !lock.isHeldByCurrentThread()) {
+			handler.sendMessage(new FailureMessage("Account not locked for editing."));
+			return;
+		}
+
+		// Step 4: Determine account type and save appropriately
+		try {
+			switch (msg.getAccountType()) {
+				case CHECKING:
+					CheckingAccount checking = (CheckingAccount) accountDatabase.get(accountID);
+					if (checking == null) {
+						handler.sendMessage(new FailureMessage("Account not found."));
+						return;
+					}
+					break;
+
+				case SAVING:
+					SavingAccount saving = (SavingAccount) accountDatabase.get(accountID);
+					if (saving == null) {
+						handler.sendMessage(new FailureMessage("Account not found."));
+						return;
+					}
+					saving.setWithdrawLimit(msg.getWithdrawalLimit());
+					break;
+
+				case CREDIT_LINE:
+					CreditLine credit = (CreditLine) accountDatabase.get(accountID);
+					if (credit == null) {
+						handler.sendMessage(new FailureMessage("Account not found."));
+						return;
+					}
+					credit.setCreditLimit(msg.getCreditLimit().toString());
+					break;
+			}
+
+			handler.sendMessage(new SuccessMessage("Account saved successfully."));
+		} catch (Exception e) {
+			handler.sendMessage(new FailureMessage("Failed to save account: " + e.getMessage()));
+		}	
+	}
+	
+	private void handleDeleteAccount(AccountMessage msg, ClientHandler handler) {
+		SessionInfo session = msg.getSession();
+		String username = session.getUsername();
+		String accountID = msg.getID();
+		
+		// Step 1. Check account exists in database
+	    Account account = accountDatabase.get(accountID);
+	    if (account == null) {
+	        handler.sendMessage(new FailureMessage("Account not found."));
+	        return;
+	    }
+	    
+	    // Step 2: Check client profile owns account
+	    if (clientDatabase.get(username).getAccountID(accountID) == null) {
+	    	handler.sendMessage(new FailureMessage("Unauthorized Account Access."));
+	        return;
+	    }
+
+	    // Step 3: Validate session and lock
+ 		ReentrantLock lock = accountLocks.get(accountID);
+ 		if (lock == null || !lock.isHeldByCurrentThread()) {
+ 			handler.sendMessage(new FailureMessage("Account not locked for editing."));
+ 			return;
+ 		}
+
+		try {
+			// Remove the account
+			ClientProfile profile = clientDatabase.get(username);
+			profile.removeAccountID(accountID);
+			accountDatabase.remove(accountID);
+			accountLocks.remove(accountID); // remove lock from map
+
+			handler.sendMessage(new SuccessMessage("Account deleted successfully."));
+		} finally {
+			// Always unlock even if an error occurs
+			if (lock.isHeldByCurrentThread()) {
+				lock.unlock();
+			}
+		}
+	}
+	
+	private void handleExitAccount(AccountMessage msg, ClientHandler handler) {
+		SessionInfo session = msg.getSession();
+		
+		String username = session.getUsername();
+		if (username == null) return;
+
+		String account_id = msg.getID();
+		if (clientDatabase.get(username).getAccountID(username) == null) return;
+		
+		// Unlock the profile if this thread holds the lock
+		ReentrantLock accountLock = accountLocks.get(account_id);
+		if (accountLock != null && accountLock.isHeldByCurrentThread()) {
+			accountLock.unlock();
+		}
+
+		handler.sendMessage(new SuccessMessage(
+			"Account lock released successfully."
+		));		
 	}
 	
 	private void handleShareAccount(Message msg, ClientHandler handler) {
@@ -470,11 +665,6 @@ public class CentralServer {
             session.setLastActive(System.currentTimeMillis());
         }
     }
-    
-    private void handleATMLogout(LogoutMessage msg, ClientHandler handler) {
-		// TODO Auto-generated method stub
-		
-	}
     
     /** Shut down all clients and clear server state (no persistence yet) */
     private void serverShutDown() {
