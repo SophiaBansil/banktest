@@ -18,4 +18,17 @@ public class SavingAccount extends Account {
 	public int getWithdrawCount() {
 		return withdrawCount;
 	}
+	@Override
+    public void addTransaction(Transaction trans) {
+        // 1) If it's a withdrawal, enforce your rules:
+        if (trans.getOperation() == Transaction.OPERATION.WITHDRAW) {
+            if (withdrawCount >= withdrawLimit) {
+                throw new IllegalStateException("Withdrawal limit reached");
+            }
+            withdrawCount++;
+        }
+
+        // 2) Do the common work:
+        super.addTransaction(trans);
+    }
 }

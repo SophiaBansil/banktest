@@ -4,7 +4,6 @@ import java.net.Socket;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -96,7 +95,60 @@ public class CentralServer {
 					break;
 				case SAVE_PROFILE:
 					handleSaveProfile((ProfileMessage) msg, handler);
+					break;
 				case DELETE_PROFILE:
+					handleDeleteProfile((ProfileMessage) msg, handler);
+					break;
+				case EXIT_PROFILE:
+					handleExitProfile((ProfileMessage) msg, handler);
+					break;
+				default:
+					break;
+			}
+		} else if (msg instanceof AccountMessage) {
+			switch (msg.getType()) {
+				case LOAD_ACCOUNT:
+					handleLoadAccount((AccountMessage) msg,handler);
+					break;
+				case SAVE_ACCOUNT:
+					handleSaveAccount((AccountMessage) msg, handler);
+					break;
+				case SHARE_ACCOUNT:
+					handleShareAccount((AccountMessage) msg, handler);
+					break;
+				case EXIT_ACCOUNT:
+					handleExitAccount((AccountMessage) msg, handler);
+					break;
+				default:
+					break;
+			}
+		} else if (msg instanceof LogoutMessage) {
+			if (msg.getType() == Message.TYPE.LOGOUT_TELLER) {
+				handleTellerLogout((LogoutMessage) msg,handler);
+			} else {
+
+			}
+		} else if (msg instanceof TransactionMessage) {
+			switch (msg.getType()) {
+			case TRANSACTION:
+				handleTransaction((TransactionMessage) msg,handler);
+				break;
+			default:
+				break;
+			}
+		} else {
+			handler.sendMessage(new FailureMessage("What you doing?"));
+		}
+	}
+
+	// delegated method to handle client functions
+	private void handleClientMessages(Message msg, ClientHandler handler) {
+		if (msg instanceof ProfileMessage) {
+			switch (msg.getType()) {
+				case LOAD_PROFILE:
+					handleLoadProfile((ProfileMessage) msg,handler);
+					break;
+				case SAVE_PROFILE:
 					handleSaveProfile((ProfileMessage) msg, handler);
 					break;
 				default:
@@ -112,77 +164,19 @@ public class CentralServer {
 					break;
 				case SHARE_ACCOUNT:
 					handleShareAccount((AccountMessage) msg, handler);
+					break;
+				case EXIT_ACCOUNT:
+					handleExitAccount((AccountMessage) msg, handler);
 				default:
 					break;
 			}
 		} else if (msg instanceof LogoutMessage) {
 			switch (msg.getType()) {
 				case LOGOUT_CLIENT:
-					handleClientLogout((LogoutMessage) msg,handler);
+					handleClientLogout((LogoutMessage) msg, handler);
 					break;
 				case LOGOUT_ATM:
 					handleATMLogout((LogoutMessage) msg, handler);
-					break;
-				default:
-					break;
-			}
-		} else if (msg instanceof TransactionMessage) {
-			switch (msg.getType()) {
-			case TRANSACTION:
-				handleTransaction((TransactionMessage) msg,handler);
-				break;
-			default:
-				break;
-			}
-		} else {
-			handler.sendMessage(new FailureMessage("What you doing?"));
-		}
-	}
-
-    private void handleTransaction(TransactionMessage msg, ClientHandler handler) {
-		// TODO Auto-generated method stub
-		
-	}
-
-	private void handleATMLogout(LogoutMessage msg, ClientHandler handler) {
-		// TODO Auto-generated method stub
-		
-	}
-
-	// delegated method to handle client functions
-	private void handleClientMessages(Message msg, ClientHandler handler) {
-		if (msg instanceof ProfileMessage) {
-			switch (msg.getType()) {
-				case LOAD_PROFILE:
-					handleLoadProfile((ProfileMessage) msg,handler);
-					break;
-				case SAVE_PROFILE:
-					handleSaveProfile(msg, handler);
-					break;
-				default:
-					break;
-			}
-		} else if (msg instanceof AccountMessage) {
-			switch (msg.getType()) {
-				case LOAD_ACCOUNT:
-					handleLoadAccount((AccountMessage) msg,handler);
-					break;
-				case SAVE_ACCOUNT:
-					handleSaveAccount((AccountMessage) msg, handler);
-					break;
-				case SHARE_ACCOUNT:
-					handleShareAccount((AccountMessage) msg, handler);
-					break;
-				default:
-					break;
-			}
-		} else if (msg instanceof LogoutMessage) {
-			switch (msg.getType()) {
-				case LOGOUT_CLIENT:
-					handleLoadProfile((ProfileMessage) msg,handler);
-					break;
-				case LOGOUT_ATM:
-					handleSaveProfile(msg, handler);
 					break;
 				default:
 					break;
@@ -199,17 +193,59 @@ public class CentralServer {
 			handler.sendMessage(new FailureMessage("What you doing?"));
 		}
 	}
+	
+	 private void handleExitAccount(AccountMessage msg, ClientHandler handler) {
+			// TODO Auto-generated method stub
+			
+		}
 
-	private void handleShareAccount(Message msg, ClientHandler handler) {
+	private void handleExitProfile(ProfileMessage msg, ClientHandler handler) {
 		// TODO Auto-generated method stub
 		
 	}
 
-	private void handleSaveProfile(Message msg, ClientHandler handler) {
+	private void handleDeleteProfile(ProfileMessage msg, ClientHandler handler) {
 		// TODO Auto-generated method stub
 		
 	}
 
+	private void handleTransaction(TransactionMessage msg, ClientHandler handler) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	private void handleSaveProfile(ProfileMessage msg, ClientHandler handler) {
+		SessionInfo session = msg.getSession(); 
+	    if (session == null || session.getRole() != SessionInfo.ROLE.TELLER) {
+	        handler.sendMessage(new FailureMessage("Unauthorized access."));
+	        return;
+	    }
+
+	    String username = session.getUsername();
+	    ClientProfile current = clientDatabase.get(username);
+	    if (current == null) {
+	        handler.sendMessage(new FailureMessage("Profile not found."));
+	        return;
+	    }
+
+	    // Check the lock (this ensures only one active editor)
+	    ReentrantLock lock = profileLocks.get(username);
+	    if (lock == null || !lock.isHeldByCurrentThread()) {
+	        handler.sendMessage(new FailureMessage("Profile not locked for editing."));
+	        return;
+	    }
+
+	    // At this point, safe to update
+	    current.setPhone(msg.getPhone());
+	    current.setAddress(msg.getAddress());
+	    current.setLegalName(msg.getLegalName());
+	    // You can add password change logic if needed
+
+	    handler.sendMessage(new SuccessMessage("Profile saved successfully."));
+	}
+
+	// client requests a profile and server attempts to retrieve using the username inside session id
+	// gives the profile to the client and locks that profile from being opened by another client
 	private void handleLoadProfile(ProfileMessage msg, ClientHandler handler) {
 	    String username = msg.getSession().getUsername();
 
@@ -247,8 +283,82 @@ public class CentralServer {
 	    // Step 5: Send the profile info (plus session info) back to the client
 	    handler.sendMessage(profileMsg);
 	}
+	
+	// client requests an account by specifying the account id
+	private void handleLoadAccount(AccountMessage msg, ClientHandler handler) {
+		String username = msg.getSession().getUsername();
+		String account_id = msg.getID();
+
+		// Step 1. Check account exists in database
+	    Account account = accountDatabase.get(account_id);
+	    if (account == null) {
+	        handler.sendMessage(new FailureMessage("Account not found."));
+	        return;
+	    }
+	    
+	    // Step 2: Check client profile owns account
+	    if (clientDatabase.get(username).getAccountID(account_id) == null) {
+	    	handler.sendMessage(new FailureMessage("Unauthorized Account Access."));
+	        return;
+	    }
+
+	    // Step 3: Check if account is in use
+	    accountLocks.putIfAbsent(username, new ReentrantLock());
+	    ReentrantLock lock = accountLocks.get(username);
+
+	    if (!lock.tryLock()) {
+	        handler.sendMessage(new FailureMessage("Account is currently in use."));
+	        return;
+	    }
+	    
+	    // Step 4: Update Session Activity
+	    updateLastActive(username);
+	    
+	    // Step 5: Determine which account instance class it is 
+	    // And create a suitable message to send to client
+	    AccountMessage accountMsg;
+	    if (account instanceof CheckingAccount c) {
+	        accountMsg = new AccountMessage(
+	            Message.TYPE.LOAD_ACCOUNT, 
+	            sessionIDs.get(username),
+	            c.getID(), 
+	            c.getBalance(), 
+	            c.getTransHistory()
+	        );
+	    } else if (account instanceof SavingAccount s) {
+	        accountMsg = new AccountMessage(
+	            Message.TYPE.LOAD_ACCOUNT, 
+	            sessionIDs.get(username),
+	            s.getID(), 
+	            s.getBalance(), 
+	            s.getTransHistory(),
+	            s.getWithdrawCount(), 
+	            s.getWithdrawLimit()
+	        );
+	    } else if (account instanceof CreditLine l) {
+	        accountMsg = new AccountMessage(
+	            Message.TYPE.LOAD_ACCOUNT, 
+	            sessionIDs.get(username),
+	            l.getID(), 
+	            l.getBalance(), 
+	            l.getTransHistory(),
+	            l.getCreditLimit()
+	        );
+	    } else {
+	        handler.sendMessage(new FailureMessage("Unsupported account type."));
+	        lock.unlock();
+	        return;
+	    }
+	    // Step 6: Send Account Information over network
+	    handler.sendMessage(accountMsg);
+	}
 
 	private void handleSaveAccount(Message msg, ClientHandler handler) {
+		// TODO Auto-generated method stub
+		
+	}
+	
+	private void handleShareAccount(Message msg, ClientHandler handler) {
 		// TODO Auto-generated method stub
 		
 	}
@@ -318,14 +428,9 @@ public class CentralServer {
 	    // Send session info back to client
 	    handler.sendMessage(new SuccessMessage("Login successful.", session));
 	}
-	
-	private void handleLoadAccount(Message msg, ClientHandler handler) {
-		// TODO Auto-generated method stub
-		
-	}
     
-	private void handleClientLogout(Message msg, ClientHandler handler) {
-		 // 1) Grab and remove the session
+	private void handleClientLogout(LogoutMessage msg, ClientHandler handler) {
+		// 1) Grab and remove the session
 	    SessionInfo session = msg.getSession();
 	    if (session != null) {
 	        sessionIDs.remove(session.getUsername());
@@ -344,9 +449,15 @@ public class CentralServer {
 	    handler.sendMessage(new SuccessMessage("Log Out Successful"));	
 	}
 	
-    // Handles Logout
-    private void LogoutClient(Message msg, ClientHandler handler) {
- 
+    // Handles Logout for Tellers
+    private void handleTellerLogout(LogoutMessage msg, ClientHandler handler) {
+    	// 1) Grab and remove the session
+	    SessionInfo session = msg.getSession();
+	    if (session != null) {
+	        sessionIDs.remove(session.getUsername());
+	    }
+	    // 2) Tell the teller it’s logged out—but connection is still open
+	    handler.sendMessage(new SuccessMessage("Log Out Successful"));
     }
     
     private void addClient(ClientHandler handler) {
@@ -359,6 +470,11 @@ public class CentralServer {
             session.setLastActive(System.currentTimeMillis());
         }
     }
+    
+    private void handleATMLogout(LogoutMessage msg, ClientHandler handler) {
+		// TODO Auto-generated method stub
+		
+	}
     
     /** Shut down all clients and clear server state (no persistence yet) */
     private void serverShutDown() {

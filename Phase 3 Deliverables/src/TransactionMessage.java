@@ -7,10 +7,10 @@ public final class TransactionMessage extends Message {
 		DEPOSIT
 	}
 	private Date created;
-	private float amount;
+	private String amount;
 	private OPERATION op;
 	
-	public TransactionMessage(SessionInfo session_id, float amount) {
+	public TransactionMessage(SessionInfo session_id, String amount) {
 		super(Message.TYPE.TRANSACTION, session_id);
 		this.amount = amount;
 		this.created = new Date();
@@ -18,7 +18,7 @@ public final class TransactionMessage extends Message {
 	public Date getDate() {
 		return created;
 	}
-	public float getAmount() {
+	public String getAmount() {
 		return amount;
 	}
 	public OPERATION getOperation() {
