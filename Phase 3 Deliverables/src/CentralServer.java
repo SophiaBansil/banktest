@@ -117,9 +117,6 @@ public class CentralServer {
 				case DELETE_ACCOUNT:
 					handleDeleteAccount((AccountMessage) msg, handler);
 					break;
-				case SHARE_ACCOUNT:
-					handleShareAccount((AccountMessage) msg, handler);
-					break;
 				case EXIT_ACCOUNT:
 					handleExitAccount((AccountMessage) msg, handler);
 					break;
@@ -134,11 +131,19 @@ public class CentralServer {
 			}
 		} else if (msg instanceof TransactionMessage) {
 			switch (msg.getType()) {
-			case TRANSACTION:
-				handleTransaction((TransactionMessage) msg,handler);
-				break;
-			default:
-				break;
+				case TRANSACTION:
+					handleTransaction((TransactionMessage) msg,handler);
+					break;
+				default:
+					break;
+			}
+		} else if (msg instanceof ShareAccountMessage) {
+			switch (msg.getType()) {
+				case SHARE_ACCOUNT:
+					handleShareAccount((ShareAccountMessage) msg, handler);
+					break;
+				default:
+					break;
 			}
 		} else {
 			handler.sendMessage(new FailureMessage("What you doing?"));
@@ -166,9 +171,6 @@ public class CentralServer {
 				case SAVE_ACCOUNT:
 					handleSaveAccount((AccountMessage) msg, handler);
 					break;
-				case SHARE_ACCOUNT:
-					handleShareAccount((AccountMessage) msg, handler);
-					break;
 				case EXIT_ACCOUNT:
 					handleExitAccount((AccountMessage) msg, handler);
 				default:
@@ -184,11 +186,19 @@ public class CentralServer {
 			}
 		} else if (msg instanceof TransactionMessage) {
 			switch (msg.getType()) {
-			case TRANSACTION:
-				handleLoadProfile((ProfileMessage) msg,handler);
-				break;
-			default:
-				break;
+				case TRANSACTION:
+					handleLoadProfile((ProfileMessage) msg,handler);
+					break;
+				default:
+					break;
+			}
+		} else if (msg instanceof ShareAccountMessage) {
+			switch (msg.getType()) {
+				case SHARE_ACCOUNT:
+					handleShareAccount((ShareAccountMessage) msg, handler);
+					break;
+				default:
+					break;
 			}
 		} else {
 			handler.sendMessage(new FailureMessage("What you doing?"));
@@ -553,8 +563,59 @@ public class CentralServer {
 		));		
 	}
 	
-	private void handleShareAccount(Message msg, ClientHandler handler) {
-		// TODO Auto-generated method stub
+	private void handleShareAccount(ShareAccountMessage msg, ClientHandler handler) {
+	    SessionInfo session = msg.getSession();
+	    if (session == null) {
+	        handler.sendMessage(new FailureMessage("Not authenticated."));
+	        return;
+	    }
+	    String ownerUsername = session.getUsername();
+	    String accountId      = msg.getSharedAccountID();
+	    String targetUsername = msg.getTargetProfile();
+
+	    // 1) Verify source profile exists
+	    ClientProfile ownerProfile = clientDatabase.get(ownerUsername);
+	    if (ownerProfile == null) {
+	        handler.sendMessage(new FailureMessage("Your profile not found."));
+	        return;
+	    }
+
+	    // 2) Check that the account exists
+	    Account acct = accountDatabase.get(accountId);
+	    if (acct == null) {
+	        handler.sendMessage(new FailureMessage("Account does not exist."));
+	        return;
+	    }
+
+	    // 3) Check the lock—or active-accounts—to ensure this user “owns” it
+	    ReentrantLock acctLock = accountLocks.get(accountId);
+	    if (acctLock == null || !acctLock.isHeldByCurrentThread()) {
+	        handler.sendMessage(new FailureMessage("You must have the account open before sharing."));
+	        return;
+	    }
+
+	    // 5) Verify the owner actually has the account in their profile
+	    if (!(ownerProfile.getAccountID(accountId) == null)) {
+	        handler.sendMessage(new FailureMessage("You do not own that account."));
+	        return;
+	    }
+
+	    // 6) Look up the target profile
+	    ClientProfile targetProfile = clientDatabase.get(targetUsername);
+	    if (targetProfile == null) {
+	        handler.sendMessage(new FailureMessage("Target user does not exist."));
+	        return;
+	    }
+
+	    // 7) Add the account ID to the target (no lock needed on their side)
+	    synchronized (targetProfile) {
+	        targetProfile.addAccountID(accountId);
+	    }
+
+	    // 8) Success!
+	    handler.sendMessage(new SuccessMessage(
+	        "Account " + accountId + " shared with " + targetUsername + "."
+	    ));
 		
 	}
 
