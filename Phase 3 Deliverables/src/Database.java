@@ -16,21 +16,13 @@ import java.util.concurrent.locks.ReentrantLock;
 public class Database implements Serializable {
     private static volatile Database instance;
 
-    // username -> password (could make custom teller class)
+    // username -> password
     private final Map<String, String> tellerDatabase = new HashMap<>();
     // username -> clientProfile objects
     private final Map<String, ClientProfile> clientDatabase = new HashMap<>();
     // id -> account objects
     private final Map<String, Account> accountDatabase = new HashMap<>();
 
-    // username -> sessionInfo (includes profile
-    private final Map<String, SessionInfo> sessionIDs = new HashMap<>();
-
-    // checks and prevent concurrent accounts, profiles, and tellers from being
-    // opened
-    private final ConcurrentMap<String, ReentrantLock> accountLocks = new ConcurrentHashMap<>();
-    private final ConcurrentMap<String, ReentrantLock> profileLocks = new ConcurrentHashMap<>();
-    private final ConcurrentMap<String, ReentrantLock> tellerLocks = new ConcurrentHashMap<>();
 
     // thread-safe variant of ArrayList in Java
     // best choice if read operation is most frequently used
@@ -51,7 +43,7 @@ public class Database implements Serializable {
         try (ObjectOutputStream s = new ObjectOutputStream(new FileOutputStream(filename))) {
             s.writeObject(this); // save entire database class to .ser file
         } catch (IOException e) {
-            System.err.println("Failed to save to database! Reason: " + e.getMessage());
+            System.err.println("Failed to save to database. Reason: " + e.getMessage());
         }
     }
 
@@ -61,7 +53,7 @@ public class Database implements Serializable {
             instance = d;
             return instance;
         } catch (IOException | ClassNotFoundException c) {
-            System.err.println("Failed to load in database! Reason: " + c.getMessage());
+            System.err.println("Failed to load in database. Reason: " + c.getMessage());
             return null;
         }
     }
@@ -83,23 +75,8 @@ public class Database implements Serializable {
         return accountDatabase;
     }
 
-    public Map<String, SessionInfo> getSessionIDs() {
-        return sessionIDs;
-    }
-
     public List<ClientHandler> getClientList() {
         return client_list;
     }
 
-    public ConcurrentMap<String, ReentrantLock> getAccountLocks(){
-        return accountLocks;
-    }
-
-    public ConcurrentMap<String, ReentrantLock> getProfileLocks(){
-        return profileLocks;
-    }
-
-    public ConcurrentMap<String, ReentrantLock> getTellerLocks(){
-        return tellerLocks;
-    }
 }
