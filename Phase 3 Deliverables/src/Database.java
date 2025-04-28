@@ -5,12 +5,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.locks.ReentrantLock;
 
 // singleton
 public class Database implements Serializable {
@@ -22,11 +17,6 @@ public class Database implements Serializable {
     private final Map<String, ClientProfile> clientDatabase = new HashMap<>();
     // id -> account objects
     private final Map<String, Account> accountDatabase = new HashMap<>();
-
-
-    // thread-safe variant of ArrayList in Java
-    // best choice if read operation is most frequently used
-    private final List<ClientHandler> client_list = new CopyOnWriteArrayList<>();
 
     // private constructor
     private Database() {
@@ -75,8 +65,5 @@ public class Database implements Serializable {
         return accountDatabase;
     }
 
-    public List<ClientHandler> getClientList() {
-        return client_list;
-    }
 
 }
