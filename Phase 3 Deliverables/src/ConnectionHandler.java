@@ -55,46 +55,54 @@ public class ConnectionHandler implements Runnable {
     }
 
     private void handleMessage(Message msg) {
-        TYPE type = msg.getType();
-        String text = msg.getText();
-        String id = msg.getID();
+        Message.TYPE type = msg.getType();  // use Message.TYPE
+        SessionInfo session = msg.getSession();  // session might be null for some messages
 
         switch (type) {
-            case LOGIN:
-                System.out.println("Handling LOGIN for ID: " + id + ", payload: " + text);
+            case LOGIN_CLIENT:
+            case LOGIN_TELLER:
+                System.out.println("Handling LOGIN request");
                 break;
             case SUCCESS:
-                System.out.println("Success: " + text);
+                System.out.println("Success: Session for " + (session != null ? session.getUsername() : "Unknown"));
+                if (loginApp != null) {
+                    loginApp.handleServerMessage(msg);
+                }
                 break;
             case FAILURE:
-                System.out.println("Failure: " + text);
+                System.out.println("Failure received");
+                if (loginApp != null) {
+                    loginApp.handleServerMessage(msg);
+                }
                 break;
             case LOAD_PROFILE:
-                System.out.println("Loading profile for ID: " + id);
+                System.out.println("Loading profile");
                 break;
             case LOAD_ACCOUNT:
-                System.out.println("Loading account for ID: " + id);
+                System.out.println("Loading account");
                 break;
             case SAVE_PROFILE:
-                System.out.println("Saving profile: " + id);
+                System.out.println("Saving profile");
                 break;
             case DELETE_PROFILE:
-                System.out.println("Deleting profile: " + id);
+                System.out.println("Deleting profile");
                 break;
             case DELETE_ACCOUNT:
-                System.out.println("Deleting account: " + id);
+                System.out.println("Deleting account");
                 break;
             case TRANSACTION:
-                System.out.println("Processing transaction: " + text);
+                System.out.println("Processing transaction");
                 break;
             case LOGOUT_ATM:
             case LOGOUT_CLIENT:
             case LOGOUT_TELLER:
-                System.out.println("Logout received for ID: " + id);
-                //session timeout handling
-                if (type == TYPE.LOGOUT_CLIENT && loginApp != null) {
+                System.out.println("Logout received");
+                if (type == Message.TYPE.LOGOUT_CLIENT && loginApp != null) {
                     loginApp.handleSessionTimeout();
                 }
+                break;
+            case SHUTDOWN:
+                System.out.println("Server is shutting down");
                 break;
             default:
                 System.out.println("Unhandled message type: " + type);

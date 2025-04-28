@@ -1,4 +1,3 @@
-package bank;
 
 public enum TYPE {
 	LOGIN,
