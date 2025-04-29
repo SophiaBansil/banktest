@@ -3,7 +3,7 @@ public class FailureMessage extends Message {
     private final String message;
 
     public FailureMessage(String message) {
-        super(TYPE.SUCCESS, null); // You can define this enum in the Message class
+        super(TYPE.FAILURE, null); // You can define this enum in the Message class
         this.message = message;
     }
 
