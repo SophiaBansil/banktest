@@ -2,6 +2,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -376,18 +377,45 @@ public class CentralServer {
 		// Step 3: Update Session Activity
 		updateLastActive(username);
 
-		// Step 4: Create a *safe* DTO copy of the profile data
-		ProfileMessage profileMsg = new ProfileMessage(
-				Message.TYPE.LOAD_PROFILE,
-				sessionIDs.get(username),
-				profile.getUsername(),
-				null, // don't send password back
-				profile.getPhone(),
-				profile.getAddress(),
-				profile.getLegalName(),
-				profile.getAccountIDs());
+		// Step 4: Build AccountSummary list
+        List<AccountSummary> summaries = new ArrayList<>();
+        for (String accID : profile.getAccountIDs()) {
+            Account acc = accountDatabase.get(accID);
+            if (acc != null) {
+            	if (acc instanceof CheckingAccount) {
+            		summaries.add(new AccountSummary(
+            				acc.getID(), 
+            				AccountSummary.ACCOUNT_TYPE.CHECKING, 
+            				acc.getBalance()));
+            	}
+            	else if (acc instanceof SavingAccount) {
+            		summaries.add(new AccountSummary(
+            				acc.getID(), 
+            				AccountSummary.ACCOUNT_TYPE.SAVING, 
+            				acc.getBalance()));
+            	}
+            	else {
+            		summaries.add(new AccountSummary(
+            				acc.getID(), 
+            				AccountSummary.ACCOUNT_TYPE.CREDIT_LINE, 
+            				acc.getBalance()));
+            	}
+            }
+        }
 
-		// Step 5: Send the profile info (plus session info) back to the client
+        // 5) Send ProfileMessage with summaries
+        ProfileMessage profileMsg = new ProfileMessage(
+            Message.TYPE.LOAD_PROFILE,
+            sessionIDs.get(username),
+            profile.getUsername(),
+            profile.getPassword(),
+            profile.getPhone(),
+            profile.getAddress(),
+            profile.getLegalName(),
+            summaries
+        );
+        
+		// Step 6: Send the profile info (plus session info) back to the client
 		handler.sendMessage(profileMsg);
 	}
 
