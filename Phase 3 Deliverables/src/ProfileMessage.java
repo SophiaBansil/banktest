@@ -1,3 +1,6 @@
+import java.util.ArrayList;
+import java.util.List;
+
 public final class ProfileMessage extends Message {
 	private static final long serialVersionUID = 1L;
 	
@@ -6,7 +9,7 @@ public final class ProfileMessage extends Message {
 	private final String phone;
 	private final String address;
 	private final String legalName;
-	private final String[] account_ids;
+	private final List<AccountSummary> summaries;
 	
 	// Constructor for requesting Profile Information
 	public ProfileMessage(TYPE type, SessionInfo session) {
@@ -16,7 +19,7 @@ public final class ProfileMessage extends Message {
 		this.phone = "";
 		this.address = "";
 		this.legalName = "";
-		this.account_ids = null;
+		this.summaries = new ArrayList<>();
     }
 	
 	// Constructor for sending Profile Information
@@ -27,14 +30,14 @@ public final class ProfileMessage extends Message {
     		String phone, 
     		String address, 
     		String legalName, 
-    		String[] account_ids) {
+    		List<AccountSummary> summaries) {
         super(type, null); // no session yet for login
         this.username = username;
         this.password = password;
         this.phone = phone;
         this.address = address;
         this.legalName = legalName;
-        this.account_ids = account_ids;
+        this.summaries = summaries;
     }
     public String getUsername() { 
     	return username; 
@@ -51,7 +54,7 @@ public final class ProfileMessage extends Message {
 	public String getLegalName() {
 		return legalName;
 	}
-	public String[] getAccount_ids() {
-		return account_ids;
+	public List<AccountSummary> getSummaries() {
+		return summaries;
 	}
 }
