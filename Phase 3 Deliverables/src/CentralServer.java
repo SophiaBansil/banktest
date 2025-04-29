@@ -403,7 +403,7 @@ public class CentralServer {
             }
         }
 
-        // 5) Send ProfileMessage with summaries
+        // Step 5: Send ProfileMessage with summaries
         ProfileMessage profileMsg = new ProfileMessage(
             Message.TYPE.LOAD_PROFILE,
             sessionIDs.get(username),

@@ -9,7 +9,7 @@ public final class ProfileMessage extends Message {
 	private final String phone;
 	private final String address;
 	private final String legalName;
-	private final List<AccountSummary> summaries;
+	private final List<AccountSummary> accounts;
 	
 	// Constructor for requesting Profile Information
 	public ProfileMessage(TYPE type, SessionInfo session) {
@@ -19,7 +19,7 @@ public final class ProfileMessage extends Message {
 		this.phone = "";
 		this.address = "";
 		this.legalName = "";
-		this.summaries = new ArrayList<>();
+		this.accounts = new ArrayList<>();
     }
 	
 	// Constructor for sending Profile Information
@@ -30,14 +30,14 @@ public final class ProfileMessage extends Message {
     		String phone, 
     		String address, 
     		String legalName, 
-    		List<AccountSummary> summaries) {
+    		List<AccountSummary> accounts) {
         super(type, null); // no session yet for login
         this.username = username;
         this.password = password;
         this.phone = phone;
         this.address = address;
         this.legalName = legalName;
-        this.summaries = summaries;
+        this.accounts   = List.copyOf(accounts);
     }
     public String getUsername() { 
     	return username; 
@@ -55,6 +55,6 @@ public final class ProfileMessage extends Message {
 		return legalName;
 	}
 	public List<AccountSummary> getSummaries() {
-		return summaries;
+	    return accounts;
 	}
 }

@@ -1,6 +1,6 @@
 import java.math.BigDecimal;
 
-public class AccountSummary {
+public final class AccountSummary {
 	public enum ACCOUNT_TYPE {
 		CHECKING,
 		SAVING,
