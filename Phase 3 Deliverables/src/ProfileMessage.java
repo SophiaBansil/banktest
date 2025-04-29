@@ -31,13 +31,13 @@ public final class ProfileMessage extends Message {
     		String address, 
     		String legalName, 
     		List<AccountSummary> accounts) {
-        super(type, null); // no session yet for login
+        super(type, session);
         this.username = username;
         this.password = password;
         this.phone = phone;
         this.address = address;
         this.legalName = legalName;
-        this.accounts   = List.copyOf(accounts);
+        this.accounts = List.copyOf(accounts);
     }
     public String getUsername() { 
     	return username; 
