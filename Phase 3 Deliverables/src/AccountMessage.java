@@ -21,9 +21,9 @@ public final class AccountMessage extends Message {
 	private final String creditLimit; // Now a String
 
 	// Constructor for Requests
-	public AccountMessage(TYPE type, SessionInfo session, String account_id, ACCOUNT_TYPE account_type) {
+	public AccountMessage(TYPE type, SessionInfo session, String account_id) {
 		super(type, session);
-		this.account_type = account_type;
+		this.account_type = null;
 		this.id = account_id;
 		this.balance = "0";
 		this.transactionHistory = null;

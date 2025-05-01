@@ -17,9 +17,13 @@ public class Transaction {
 		this.op = op;
 	}
 	public String getDate() {
+		// getter for formatted date
 		SimpleDateFormat format = new SimpleDateFormat("MM/dd/yyyy");
 		String formatDate = format.format(created);
 		return formatDate;
+	}
+	public Date getCreated(){
+		return this.created;
 	}
 	public BigDecimal getAmount() {
 		return amount;

@@ -5,10 +5,10 @@ import java.net.Socket;
 public class LoginApplication {
     private ConnectionHandler handler;  // Handles communication with the server
     private LoginGUI gui;               // Talks to GUI for showing errors or session timeouts
-   private ClientProfileApplication clientProApp;
+    private ClientProfileApplication clientProApp;
     private ATMApplication ATMApp;
-   // private TellerApplication tellerApp;
-   private Boolean isTeller = false;
+    // private TellerApplication tellerApp;
+    private Boolean isTeller = false;
 
     // Allows the GUI to be connected to the application logic
     public void setGUI(LoginGUI gui) {
@@ -35,27 +35,54 @@ public class LoginApplication {
         }
     }
 
-    // Sends a login request for a Teller
+    // Sends a login request for a Teller FINISH ~~~~~~~~~~~~~~~~~~~~~~~~~~~
     public void TellerLogin(String user, String pass) {
         isTeller = true;
         establishConnection();
-        Message loginMsg = new LoginMessage(Message.TYPE.LOGIN_CLIENT, user, pass);
+        Message loginMsg = new LoginMessage(Message.TYPE.LOGIN_TELLER, user, pass);
         handler.send(loginMsg);
+
+        // BLOCK and wait for server response
+        try {
+            Message serverResponse = handler.getMessage();
+            if (serverResponse.getType() == Message.TYPE.SUCCESS && serverResponse instanceof SuccessMessage){
+                // cast to successMessage & manage new session ID
+                SuccessMessage msg = (SuccessMessage) serverResponse;
+                SessionInfo session = msg.getSession();
+
+                // SET up tellerprofileappp w session parameters
+                //tellerApp = new TellerProfileApplication();
+                //tellerApp.setConnectionHandler(handler);
+                //tellerApp.setSession(session);
+                //gui.showTellerHomeScreen(); // FAKE METHOD~~~~~~~~~~~~~
+
+            }else if ( serverResponse.getType() == Message.TYPE.FAILURE && serverResponse instanceof FailureMessage){
+                // cast to FailureMessage
+                FailureMessage msg = (FailureMessage) serverResponse;
+                System.out.println("Error: " + msg.getMessage());
+            } else {
+                System.out.println("Error: unexpected message type received");
+            }
+        } catch (InterruptedException e) {
+            System.out.println("Login request interrupted");
+            if (gui != null) gui.showError("Login process interrupted");
+        }
     }
 
-    // Sends a login request for a Client
+    // Sends a login request for a Client -- from an ATM
     public void ClientLogin(String user, String pass) {
         establishConnection();
         Message loginMsg = new LoginMessage(Message.TYPE.LOGIN_CLIENT, user, pass);
         handler.send(loginMsg);
-    }
 
-    public void handleServerMessage(Message msg){
-        if (msg.getType() == Message.TYPE.SUCCESS) {
-            SessionInfo session = msg.getSession();
-            
-            if(isTeller == false){
-    
+        // BLOCK and wait for server response
+        try {
+            Message serverResponse = handler.getMessage();
+            if (serverResponse.getType() == Message.TYPE.SUCCESS && serverResponse instanceof SuccessMessage){
+                // cast to successMessage & manage new session ID
+                SuccessMessage msg = (SuccessMessage) serverResponse;
+                SessionInfo session = msg.getSession();
+
                 // set up clientProfileApplication with session parameters
                 clientProApp = new ClientProfileApplication();
                 ATMApp = new ATMApplication();
@@ -63,25 +90,25 @@ public class LoginApplication {
                 clientProApp.setSession(session);
                 ATMApp.setConnectionHandler(handler);
                 ATMApp.setSession(session);
+                clientProApp.setATMApplication(ATMApp);
 
                 clientProApp.requestProfile();
 
                 // ~~~~~transition into correct gui screen later~~~~~~
-                // gui.showATMHomeScreen(); // FAKE METHOD~~~~~~~~~~~~~~~
-            } else if(isTeller == true){
-                //tellerApp = new TellerProfileApplication();
-                //tellerApp.setConnectionHandler(handler);
-                //tellerApp.setSession(session);
-                //gui.showTellerHomeScreen(); // FAKE METHOD~~~~~~~~~~~~~~~~
+                // gui.showClientProfileScreen(); // FAKE METHOD~~~~~~~~~~~~~~~
+
+            }else if ( serverResponse.getType() == Message.TYPE.FAILURE && serverResponse instanceof FailureMessage){
+                // cast to FailureMessage
+                FailureMessage msg = (FailureMessage) serverResponse;
+                System.out.println("Error: " + msg.getMessage());
+            } else {
+                System.out.println("Error: unexpected message type received");
             }
-            
-
-            
-        } else if (msg.getType() == Message.TYPE.FAILURE) {
-            
-        } 
+        } catch (InterruptedException e) {
+            System.out.println("Login request interrupted");
+            if (gui != null) gui.showError("Login process interrupted");
+        }
     }
-
 
     // Connects to the server and creates the handler if it's not already set
     private void establishConnection() {

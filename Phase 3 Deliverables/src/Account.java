@@ -19,7 +19,7 @@ public abstract class Account {
 	public String getID() {
 		return this.id;
 	}
-	public List<Transaction> getTransHistory() {
+	public List<Transaction> getTransactionHistory() {
 		return this.transactionHistory;
 	}
 	public void addTransaction(Transaction trans) {

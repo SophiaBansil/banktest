@@ -1,16 +1,22 @@
 import java.util.List;
+import java.lang.InterruptedException;
 
 public class ClientProfileApplication {
 
     private ClientProfile profile;
     private ConnectionHandler handler;
     private SessionInfo session;
+    private ATMApplication atmApp;
     private List<AccountSummary> accounts;
     // private ClientProfileGUI gui;
 
     /*public void setGUI(ClientProfileGUI g){
         this.gui = g;
     }*/
+    public void setATMApplication(ATMApplication atmApp) {
+        this.atmApp = atmApp;
+    }
+
     public void setConnectionHandler(ConnectionHandler c){
         this.handler = c;
     }
@@ -20,28 +26,45 @@ public class ClientProfileApplication {
     }
 
     // this sends request to server for clientProfile info
+    // ~~~~~~IMPLEMENT LATER: SWINGWORKER~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     public void requestProfile(){
         // create ProfileMessage object to send
         Message profileMessage = new ProfileMessage(Message.TYPE.LOAD_PROFILE, session);
         // send to server via handler
         handler.send(profileMessage);
+
+        // BLOCK and wait for server response
+        try{
+            Message serverResponse = handler.getMessage();
+            if (serverResponse.getType() == Message.TYPE.LOAD_PROFILE && serverResponse instanceof ProfileMessage){
+                // cast serverResponse to ProfileMessage
+                ProfileMessage msg = (ProfileMessage) serverResponse;
+                // create ClientProfile object from server response
+                this.profile = new ClientProfile(
+                msg.getUsername(),
+                msg.getPassword(), 
+                msg.getPhone(),
+                msg.getAddress(), 
+                msg.getLegalName());  
+                this.accounts = msg.getSummaries();
+
+                // relay info to GUI~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+                /*gui.loadProfile();
+                gui.loadAccounts();*/
+
+            } else if ( serverResponse.getType() == Message.TYPE.FAILURE && serverResponse instanceof FailureMessage){
+                // cast to FailureMessage
+                FailureMessage msg = (FailureMessage) serverResponse;
+                System.out.println("Error: " + msg.getMessage());
+            } else {
+                System.out.println("Error: unexpected message type received");
+            }
+        } catch (InterruptedException e) { // ConnectionHandler.getMessage() throws an InterruptedException
+            System.out.println("Request interrupted");
+        }
     }
 
-    public void handleProfileMssgResponse(ProfileMessage msg){
-        // create ClientProfile object from message received
-        this.profile = new ClientProfile(
-            msg.getUsername(),
-            msg.getPassword(), 
-            msg.getPhone(),
-            msg.getAddress(), 
-            msg.getLegalName());  
 
-        this.accounts = msg.getSummaries();
-
-        // relay info to GUI
-        /*loadProfile();
-        loadAccounts();*/
-     }
 
     // this sends all profile info to gui
    /*  public void loadProfile(){
@@ -59,8 +82,27 @@ public class ClientProfileApplication {
 
 
     //this will open up ATMApplication & corresponding GUI page
-    public void selectAccount(String id) {}
+    // gui will send in selected ID
+    public void selectAccount(String id) {
+        // find selected accountID in accounts list
+        // Find the matching AccountSummary
+        AccountSummary selected = null;
+        for (AccountSummary summary : accounts) {
+            if (summary.getID().equals(id)) {
+                selected = summary;
+                break;
+            }
+        }
+
+        if (atmApp != null && selected != null) {
+            atmApp.loadAccount(selected.getID()); 
+            // call gui method to transition to ATMApplication screen
+            //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        }
+    }
 
     //this will return to LoginApplication and Login screen
-    public void exit() {}   
+    public void exit() {
+        // remember to send message of type EXIT_PROFILE to server
+    }   
 }

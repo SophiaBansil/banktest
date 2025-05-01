@@ -403,7 +403,7 @@ public class CentralServer {
             }
         }
 
-        // Step 5: Send ProfileMessage with summaries
+        // 5) Send ProfileMessage with summaries
         ProfileMessage profileMsg = new ProfileMessage(
             Message.TYPE.LOAD_PROFILE,
             sessionIDs.get(username),
@@ -458,14 +458,14 @@ public class CentralServer {
 					sessionIDs.get(username),
 					c.getID(),
 					c.getBalance(),
-					c.getTransHistory());
+					c.getTransactionHistory());
 		} else if (account instanceof SavingAccount s) {
 			accountMsg = new AccountMessage(
 					Message.TYPE.LOAD_ACCOUNT,
 					sessionIDs.get(username),
 					s.getID(),
 					s.getBalance(),
-					s.getTransHistory(),
+					s.getTransactionHistory(),
 					s.getWithdrawCount(),
 					s.getWithdrawLimit());
 		} else if (account instanceof CreditLine l) {
@@ -474,7 +474,7 @@ public class CentralServer {
 					sessionIDs.get(username),
 					l.getID(),
 					l.getBalance(),
-					l.getTransHistory(),
+					l.getTransactionHistory(),
 					l.getCreditLimit());
 		} else {
 			handler.sendMessage(new FailureMessage("Unsupported account type."));
