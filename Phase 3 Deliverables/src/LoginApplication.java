@@ -3,7 +3,7 @@
 import java.net.Socket;
 
 public class LoginApplication {
-    private ConnectionHandler handler;  // Handles communication with the server
+    private ConnectionHandler handler;  
     private LoginGUI gui;               // Talks to GUI for showing errors or session timeouts
     private ClientProfileApplication clientProApp;
     private ATMApplication ATMApp;
@@ -114,7 +114,7 @@ public class LoginApplication {
     private void establishConnection() {
         if (handler == null) {
             try {
-                Socket socket = new Socket("localhost", 1234);
+                Socket socket = new Socket("localhost", 7777);
                 handler = new ConnectionHandler(socket);
                 new Thread(handler).start();
             } catch (Exception e) {

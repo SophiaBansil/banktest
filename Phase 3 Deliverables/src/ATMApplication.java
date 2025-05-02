@@ -32,7 +32,6 @@ public class ATMApplication {
     // loads in all account data once an account is chosen from
     // ClientApplication
     public void loadAccount(String accID) {
-         // Create a message to request account data
         Message loadAccMsg = new AccountMessage(Message.TYPE.LOAD_ACCOUNT, session, accID );
         handler.send(loadAccMsg);
     
@@ -64,7 +63,7 @@ public class ATMApplication {
                 String formattedEntry = String.format("%s, %s, %s",
                     t.getDate(),
                     formatOperation(t.getOperation()), 
-                    getFormattedAmount(t)  // Using the helper method
+                    formatAmount(t)  
                 );
                 formatted.add(formattedEntry);
             }
@@ -174,7 +173,7 @@ public class ATMApplication {
         return account;
     }
 
-    public String getFormattedAmount(Transaction t) {
+    public String formatAmount(Transaction t) {
         String sign = (t.getOperation() == Transaction.OPERATION.DEPOSIT) ? "+" : "-";
         return String.format("%s$%.2f", sign, t.getAmount().abs());
     }
