@@ -1,5 +1,3 @@
-package bankGUI;
-
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
@@ -82,7 +80,7 @@ public class ATMProfileGUI extends JFrame {
         
         topPanel.add(idLabelTop);
         topPanel.add(phoneLabel);
-        
+        // Don't add topPanel directly to contentPane yet
 
         /* --- Header + Logout --------------------------------------------- */
         JLabel title = new JLabel("Welcome, " + fullName, SwingConstants.LEFT);
