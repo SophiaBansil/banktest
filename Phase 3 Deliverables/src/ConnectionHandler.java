@@ -1,21 +1,24 @@
-package bank;
-
 import java.io.*;
 import java.net.Socket;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+
 
 public class ConnectionHandler implements Runnable {
 
     private final Socket clientSocket;
     private ObjectInputStream in;
     private ObjectOutputStream out;
- // communicates with LoginApplication 
+    private final BlockingQueue<Message> incomingMssg = new LinkedBlockingQueue<>();
+    private final BlockingQueue<Message> outgoingMssg = new LinkedBlockingQueue<>();
+    // communicates with LoginApplication 
     private LoginApplication loginApp; 
 
     public ConnectionHandler(Socket socket) {
         this.clientSocket = socket;
     }
     
-  //setter for LoginApplication
+    //setter for LoginApplication
     public void setLoginApplication(LoginApplication app) { 
         this.loginApp = app;
     }
@@ -26,12 +29,27 @@ public class ConnectionHandler implements Runnable {
             out = new ObjectOutputStream(clientSocket.getOutputStream());
             out.flush();
             in = new ObjectInputStream(clientSocket.getInputStream());
+            
+            // Launch a separate thread for outgoing messages
+            new Thread(() -> {
+                try {
+                    while (!Thread.currentThread().isInterrupted()) {
+                        Message msgToSend = outgoingMssg.take(); // Blocks until a message is available
+                        synchronized (out) {
+                            out.writeObject(msgToSend);
+                            out.flush();
+                        }
+                    }
+                } catch (IOException | InterruptedException e) {
+                    System.err.println("Error sending message: " + e.getMessage());
+                }
+            }).start();
 
             while (true) {
                 Object obj = in.readObject();
                 if (obj instanceof Message) {
                     Message msg = (Message) obj;
-                    handleMessage(msg);
+                    incomingMssg.offer(msg);
                 } else {
                     System.out.println("Received unknown object.");
                 }
@@ -54,67 +72,17 @@ public class ConnectionHandler implements Runnable {
         }
     }
 
-    private void handleMessage(Message msg) {
-        Message.TYPE type = msg.getType();  // use Message.TYPE
-        SessionInfo session = msg.getSession();  // session might be null for some messages
-
-        switch (type) {
-            case LOGIN_CLIENT:
-            case LOGIN_TELLER:
-                System.out.println("Handling LOGIN request");
-                break;
-            case SUCCESS:
-                System.out.println("Success: Session for " + (session != null ? session.getUsername() : "Unknown"));
-                if (loginApp != null) {
-                    loginApp.handleServerMessage(msg);
-                }
-                break;
-            case FAILURE:
-                System.out.println("Failure received");
-                if (loginApp != null) {
-                    loginApp.handleServerMessage(msg);
-                }
-                break;
-            case LOAD_PROFILE:
-                System.out.println("Loading profile");
-                break;
-            case LOAD_ACCOUNT:
-                System.out.println("Loading account");
-                break;
-            case SAVE_PROFILE:
-                System.out.println("Saving profile");
-                break;
-            case DELETE_PROFILE:
-                System.out.println("Deleting profile");
-                break;
-            case DELETE_ACCOUNT:
-                System.out.println("Deleting account");
-                break;
-            case TRANSACTION:
-                System.out.println("Processing transaction");
-                break;
-            case LOGOUT_ATM:
-            case LOGOUT_CLIENT:
-            case LOGOUT_TELLER:
-                System.out.println("Logout received");
-                if (type == Message.TYPE.LOGOUT_CLIENT && loginApp != null) {
-                    loginApp.handleSessionTimeout();
-                }
-                break;
-            case SHUTDOWN:
-                System.out.println("Server is shutting down");
-                break;
-            default:
-                System.out.println("Unhandled message type: " + type);
-        }
+    public void send(Message msg) {
+        outgoingMssg.offer(msg);
     }
 
-    public void send(Message msg) {
+    // this will BLOCK client app until message is received
+    // 
+    public Message getMessage() throws InterruptedException {
         try {
-            out.writeObject(msg);
-            out.flush();
-        } catch (IOException e) {
-            System.err.println("Error sending message: " + e.getMessage());
+            return incomingMssg.take();
+        } catch (InterruptedException e) {
+            return null;
         }
     }
 } 
