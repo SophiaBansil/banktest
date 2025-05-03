@@ -5,12 +5,11 @@ public abstract class Message implements Serializable {
 	public enum TYPE {
 		LOGIN_CLIENT,
 		LOGIN_TELLER,
-		LOGOUT_ATM,
-	    LOGOUT_CLIENT,
+		LOGOUT_ATM, 
+	    LOGOUT_CLIENT, // not needed?
 	    LOGOUT_TELLER,
 	    SUCCESS,
 	    FAILURE,
-	    LOAD_ALL_ACCOUNTS,
 	    LOAD_ACCOUNT,
 	    LOAD_PROFILE,
 	    SAVE_PROFILE,
@@ -20,8 +19,12 @@ public abstract class Message implements Serializable {
 	    DELETE_PROFILE,
 	    EXIT_ACCOUNT,
 	    EXIT_PROFILE,
+		CREATE_ACCOUNT,
+		CHECK_USERNAME_AVAILABILITY,
+		CREATE_PROFILE,
 	    TRANSACTION,
-	    SHUTDOWN
+	    SHUTDOWN,
+		SESSION_TIMEOUT // implement
 	}
 	
 	private final TYPE type;

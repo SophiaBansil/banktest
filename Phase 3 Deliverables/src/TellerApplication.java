@@ -1,18 +1,15 @@
-
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
-public class ATMApplication {
+public class TellerApplication {
+
+    private ClientProfile profile;
+    private Account account;
     private ConnectionHandler handler;
     private SessionInfo session;
-    private Account account;
-    private static final BigDecimal ATM_TRANSACTION_LIMIT = new BigDecimal("9999.99");
+    private List<AccountSummary> accounts;
 
-    public ATMApplication(){
-        this.account = null;
-
-    }
     public void setConnectionHandler(ConnectionHandler c){
         this.handler = c;
     }
@@ -20,26 +17,46 @@ public class ATMApplication {
     public void setSession(SessionInfo s){
         this.session = s;
     }
-    
-    public Account getAccount(){
-        return this.account;
+
+
+    public void changeBankInfo() {
+        // use SAVE_PROFILE?
+    }
+    public void deleteProfile(){
+        // send mssg of type DELETE_PROFILE
+    }
+    public void deleteAccount(String id) {
+        // send mssg of type DELETE_ACCOUNT
+    }
+    public void addAccount(String type){
+        // send mssg of type CREATE_ACCOUNT
+        // remember implement shared accounts 
+        // also still need to implement server-side account creation
+    }
+    public void logOutClientProfile(){
+        // send mssg of type LOGOUT_CLIENT
+    }
+    public void createNewProfile(){
+        // step 1:  send mssg of TYPE.CHECK_USERNAME_AVAILABILITY, which just checks if username is available
+        //          ( this is to avoid needing to retype all info if username is taken)
+        // step 2: if username is good. send mssg of TYPE.CREATE_PROFILE which takes in 
+        //          profile information
+        // also still need to implement server-side account creation
     }
 
-    // getter for connectionhandlerand session not needed; already in clientprofileapp
+    public void exit() {
+        // send mssg of type LOGOUT_TELLER
+    }
 
     public boolean withdraw(String amount) {
         // check that inputted amount is valid
-        // cannot enter negative amount
-        // cannot withdraw more than $9999 at atm
+
         try {
 			BigDecimal check = new BigDecimal(amount);
             if (check.compareTo(BigDecimal.ZERO) <= 0) {
                 return false;
             }
-            if (check.compareTo(ATM_TRANSACTION_LIMIT) > 0){
-                // print to gui: Please see a Teller for assistance.
-                return false;
-            }
+
 		} catch (NumberFormatException e) {
 			return false;
 		}
@@ -53,19 +70,14 @@ public class ATMApplication {
         }
     }
 
+
     public boolean deposit(String amount) {
         //check that inputted amount is valid
-        // cannot enter negative amount
-        // cannot  deposit more than $9999 at atm
         try {
 			BigDecimal check = new BigDecimal(amount);
             if (check.compareTo(BigDecimal.ZERO) <= 0) {
                 return false;
             }
-            if (check.compareTo(ATM_TRANSACTION_LIMIT) > 0){
-                // print to gui: Please see a Teller for assistance.
-                return false;
-            }	
 		} catch (NumberFormatException e) {
 			return false;
 		}
@@ -79,10 +91,38 @@ public class ATMApplication {
         }
     }
 
-    // loads in all account data once an account is chosen from
-    // ClientApplication
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~` BLOCKS~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    public void loadClientProfile(){
+        // create ProfileMessage object to send
+        Message profileMessage = new ProfileMessage(Message.TYPE.LOAD_PROFILE, session);
+        // send to server via handler
+        handler.send(profileMessage);
+
+        // BLOCK and wait for server response
+        try{
+            Message serverResponse = handler.getMessage();
+            if (serverResponse.getType() == Message.TYPE.LOAD_PROFILE && serverResponse instanceof ProfileMessage){
+                // cast serverResponse to ProfileMessage
+                ProfileMessage msg = (ProfileMessage) serverResponse;
+                // create ClientProfile object from server response
+                this.profile = new ClientProfile(
+                msg.getUsername(),
+                msg.getPassword(), 
+                msg.getPhone(),
+                msg.getAddress(), 
+                msg.getLegalName());  
+                this.accounts = msg.getSummaries();
+            } else if ( serverResponse.getType() == Message.TYPE.FAILURE && serverResponse instanceof FailureMessage){
+                // cast to FailureMessage
+                FailureMessage msg = (FailureMessage) serverResponse;
+                System.out.println("Error: " + msg.getMessage());
+            } else {
+                System.out.println("Error: unexpected message type received");
+            }
+        } catch (Exception e) { // ConnectionHandler.getMessage() throws an InterruptedException
+            System.out.println("Request interrupted");
+        }
+    } 
+
     public void loadAccount(String accID) {
         Message loadAccMsg = new AccountMessage(Message.TYPE.LOAD_ACCOUNT, session, accID );
         handler.send(loadAccMsg);
@@ -97,49 +137,15 @@ public class ATMApplication {
         }
     }
 
-    public void loadTransactionHistory(){
-        //RELAY TRANSACTION HIST TO GUI
-        if (account == null || account.getTransactionHistory() == null) {
-            //gui.showError("No transaction history available");
-            return;
-        }
-       
-         try {
-            // sort transactions by date
-            List<Transaction> transactions = new ArrayList<>(account.getTransactionHistory());
-            transactions.sort((t1, t2) -> t2.getCreated().compareTo(t1.getCreated()));
-
-            // do more formatting and build new list
-            List<String> formatted = new ArrayList<>();
-            for (Transaction t : transactions) {
-                String formattedEntry = String.format("%s, %s, %s",
-                    t.getDate(),
-                    formatOperation(t.getOperation()), 
-                    formatAmount(t)  
-                );
-                formatted.add(formattedEntry);
-            }
-
-            // relay to GUI
-            // gui.displayTransactionHistory(formatted);
-
-            } catch (Exception e) {
-             // gui.showError("Error formatting transactions: " + e.getMessage());
-            }
-    }
-
-
-
-    public void exit() {
+    public void exitAccount() {
         Message msg = new AccountMessage(Message.TYPE.EXIT_ACCOUNT, this.session, this.account.getID());
         handler.send(msg);
         // return to clientprofile screen
     }
 
-    //------------------------
-    //private helper methods
-    //------------------------
-
+    // __________________________________________
+    // private helper methods ___________________
+    // __________________________________________
     private boolean performTransaction(String amount, Transaction.OPERATION operation) {
         if (account == null || session == null) {
             System.out.println("No active account session");
@@ -175,10 +181,6 @@ public class ATMApplication {
         
         return false;
     }
-    
-
-    
-    // method to retrieve account information from Database
     private boolean refreshAccount(){
 
         if (account == null) return false;
@@ -213,8 +215,7 @@ public class ATMApplication {
         }
         return false;
     }
-    
-     
+
     private Account createCheckingAccount(AccountMessage msg) {
         CheckingAccount account = new CheckingAccount();
         return account;
@@ -229,16 +230,4 @@ public class ATMApplication {
         CreditLine account = new CreditLine(msg.getCreditLimit().toString());
         return account;
     }
-
-    public String formatAmount(Transaction t) {
-        String sign = (t.getOperation() == Transaction.OPERATION.DEPOSIT) ? "+" : "-";
-        return String.format("%s$%.2f", sign, t.getAmount().abs());
-    }
-
-    private String formatOperation(Transaction.OPERATION op) {
-        if (op == null) return "Unknown";
-        return op.name().charAt(0) + op.name().substring(1).toLowerCase();
-    }
-
 }
-

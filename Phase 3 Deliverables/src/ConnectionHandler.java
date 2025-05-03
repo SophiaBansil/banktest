@@ -37,6 +37,12 @@ public class ConnectionHandler implements Runnable {
             out = new ObjectOutputStream(clientSocket.getOutputStream());
             out.flush();
             in = new ObjectInputStream(clientSocket.getInputStream());
+
+            reader = new Thread(this::readLoop);
+            writer = new Thread(this::writeLoop);
+            reader.start();
+            writer.start();
+            running = true;
         } catch (IOException e) {
             System.err.println("Connection error: " + e.getMessage());
             // error handler callback
@@ -157,7 +163,7 @@ public class ConnectionHandler implements Runnable {
 
     // this will BLOCK client app until message is received
     //
-    public Message getMessage() throws InterruptedException {
+    public Message getMessage() {
         try {
             return incomingMssg.take();
         } catch (InterruptedException e) {
@@ -165,6 +171,7 @@ public class ConnectionHandler implements Runnable {
         }
     }
 
+    // end session
     public void shutDown() {
         if (closed.get() == false) {
             return;
@@ -173,8 +180,12 @@ public class ConnectionHandler implements Runnable {
         // set running to false
         running = false;
 
-        if (reader != null) reader.interrupt();
-        if (writer != null) writer.interrupt();
+        if (reader != null) {
+            reader.interrupt();
+        }
+        if (writer != null){
+            writer.interrupt();
+        }
 
         try {
             if (in != null)
@@ -182,8 +193,8 @@ public class ConnectionHandler implements Runnable {
             if (out != null)
                 out.close();
             clientSocket.close();
-        } catch (IOException e) {
-            System.err.println("Error closing socket: " + e.getMessage());
+        } catch (IOException ignored) {
+            // ignore so we can shut it down
         }
     }
 }

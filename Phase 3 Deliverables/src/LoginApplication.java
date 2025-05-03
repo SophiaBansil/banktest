@@ -7,8 +7,7 @@ public class LoginApplication {
     private LoginGUI gui;               // Talks to GUI for showing errors or session timeouts
     private ClientProfileApplication clientProApp;
     private ATMApplication ATMApp;
-    // private TellerApplication tellerApp;
-    private Boolean isTeller = false;
+    private TellerApplication tellerApp;
 
     // Allows the GUI to be connected to the application logic
     public void setGUI(LoginGUI gui) {
@@ -37,7 +36,6 @@ public class LoginApplication {
 
     // Sends a login request for a Teller FINISH ~~~~~~~~~~~~~~~~~~~~~~~~~~~
     public void TellerLogin(String user, String pass) {
-        isTeller = true;
         establishConnection();
         Message loginMsg = new LoginMessage(Message.TYPE.LOGIN_TELLER, user, pass);
         handler.send(loginMsg);
@@ -45,25 +43,23 @@ public class LoginApplication {
         // BLOCK and wait for server response
         try {
             Message serverResponse = handler.getMessage();
-            if (serverResponse.getType() == Message.TYPE.SUCCESS && serverResponse instanceof SuccessMessage){
+            if ( serverResponse instanceof SuccessMessage){
                 // cast to successMessage & manage new session ID
                 SuccessMessage msg = (SuccessMessage) serverResponse;
                 SessionInfo session = msg.getSession();
 
-                // SET up tellerprofileappp w session parameters
-                //tellerApp = new TellerProfileApplication();
-                //tellerApp.setConnectionHandler(handler);
-                //tellerApp.setSession(session);
-                //gui.showTellerHomeScreen(); // FAKE METHOD~~~~~~~~~~~~~
+                tellerApp = new TellerApplication();
+                tellerApp.setConnectionHandler(handler);
+                tellerApp.setSession(session);
 
-            }else if ( serverResponse.getType() == Message.TYPE.FAILURE && serverResponse instanceof FailureMessage){
+            }else if (serverResponse instanceof FailureMessage){
                 // cast to FailureMessage
                 FailureMessage msg = (FailureMessage) serverResponse;
                 System.out.println("Error: " + msg.getMessage());
             } else {
                 System.out.println("Error: unexpected message type received");
             }
-        } catch (InterruptedException e) {
+        } catch (Exception e) {
             System.out.println("Login request interrupted");
             if (gui != null) gui.showError("Login process interrupted");
         }
@@ -94,17 +90,15 @@ public class LoginApplication {
 
                 clientProApp.requestProfile();
 
-                // ~~~~~transition into correct gui screen later~~~~~~
-                // gui.showClientProfileScreen(); // FAKE METHOD~~~~~~~~~~~~~~~
 
-            }else if ( serverResponse.getType() == Message.TYPE.FAILURE && serverResponse instanceof FailureMessage){
+            }else if (serverResponse instanceof FailureMessage){
                 // cast to FailureMessage
                 FailureMessage msg = (FailureMessage) serverResponse;
                 System.out.println("Error: " + msg.getMessage());
             } else {
                 System.out.println("Error: unexpected message type received");
             }
-        } catch (InterruptedException e) {
+        } catch (Exception e) {
             System.out.println("Login request interrupted");
             if (gui != null) gui.showError("Login process interrupted");
         }

@@ -1,34 +1,40 @@
+import java.time.LocalDate;
 
 public class SavingAccount extends Account {
 	// Should reset withdrawCount every Month
 	private int withdrawCount; // counts current withdraws made to account
-	private int withdrawLimit; // maximum number of withdraws that can be made
+	private static final int DEFAULT_MONTHLY_WITHDRAWAL_LIMIT = 5;
+    private LocalDate reset;
+
 	
-	public SavingAccount(int limit) {
+	public SavingAccount() {
 		super();
-		withdrawLimit = limit;
 	}
 	
-	public void setWithdrawLimit(int limit) {
-		this.withdrawLimit = limit;
-	}
-	public int getWithdrawLimit() {
-		return withdrawLimit;
-	}
 	public int getWithdrawCount() {
 		return withdrawCount;
 	}
+
+	// resets every new calendar month
+	private void checkReset() {
+        LocalDate now = LocalDate.now();
+        if (now.getMonth() != reset.getMonth() || now.getYear() != reset.getYear()) {
+            withdrawCount = 0;
+            reset = now;
+        }
+    }
+
 	@Override
     public void addTransaction(Transaction trans) {
-        // 1) If it's a withdrawal, enforce your rules:
+		checkReset();
+		
         if (trans.getOperation() == Transaction.OPERATION.WITHDRAW) {
-            if (withdrawCount >= withdrawLimit) {
+            if (withdrawCount >= DEFAULT_MONTHLY_WITHDRAWAL_LIMIT) {
                 throw new IllegalStateException("Withdrawal limit reached");
             }
             withdrawCount++;
         }
 
-        // 2) Do the common work:
         super.addTransaction(trans);
     }
 }

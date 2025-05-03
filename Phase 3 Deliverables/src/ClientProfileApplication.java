@@ -8,11 +8,7 @@ public class ClientProfileApplication {
     private SessionInfo session;
     private ATMApplication atmApp;
     private List<AccountSummary> accounts;
-    // private ClientProfileGUI gui;
-
-    /*public void setGUI(ClientProfileGUI g){
-        this.gui = g;
-    }*/
+ 
     public void setATMApplication(ATMApplication atmApp) {
         this.atmApp = atmApp;
     }
@@ -26,7 +22,8 @@ public class ClientProfileApplication {
     }
 
     // this sends request to server for clientProfile info
-    // ~~~~~~IMPLEMENT LATER: SWINGWORKER~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    // ~~~~~~BLOCKS~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     public void requestProfile(){
         // create ProfileMessage object to send
         Message profileMessage = new ProfileMessage(Message.TYPE.LOAD_PROFILE, session);
@@ -47,11 +44,6 @@ public class ClientProfileApplication {
                 msg.getAddress(), 
                 msg.getLegalName());  
                 this.accounts = msg.getSummaries();
-
-                // relay info to GUI~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-                /*gui.loadProfile();
-                gui.loadAccounts();*/
-
             } else if ( serverResponse.getType() == Message.TYPE.FAILURE && serverResponse instanceof FailureMessage){
                 // cast to FailureMessage
                 FailureMessage msg = (FailureMessage) serverResponse;
@@ -59,10 +51,11 @@ public class ClientProfileApplication {
             } else {
                 System.out.println("Error: unexpected message type received");
             }
-        } catch (InterruptedException e) { // ConnectionHandler.getMessage() throws an InterruptedException
+        } catch (Exception e) { // ConnectionHandler.getMessage() throws an InterruptedException
             System.out.println("Request interrupted");
         }
     }
+
 
 
 
@@ -84,8 +77,6 @@ public class ClientProfileApplication {
     //this will open up ATMApplication & corresponding GUI page
     // gui will send in selected ID
     public void selectAccount(String id) {
-        // find selected accountID in accounts list
-        // Find the matching AccountSummary
         AccountSummary selected = null;
         for (AccountSummary summary : accounts) {
             if (summary.getID().equals(id)) {
@@ -96,13 +87,25 @@ public class ClientProfileApplication {
 
         if (atmApp != null && selected != null) {
             atmApp.loadAccount(selected.getID()); 
-            // call gui method to transition to ATMApplication screen
-            //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         }
     }
 
     //this will return to LoginApplication and Login screen
     public void exit() {
-        // remember to send message of type EXIT_PROFILE to server
+        // client-side log out
+        Message logoutMsg = new LogoutMessage(
+            Message.TYPE.LOGOUT_ATM, 
+            this.session
+        );
+        handler.send(logoutMsg);
+
+        Message msg = handler.getMessage();
+        if (msg instanceof SuccessMessage) {
+            System.out.println("Logged out successfully: " + ((SuccessMessage) msg).getMessage());
+
+        }
+
+        handler.setLoggedOut(true);
+        handler.shutDown();
     }   
 }

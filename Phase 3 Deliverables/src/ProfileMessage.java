@@ -19,7 +19,7 @@ public final class ProfileMessage extends Message {
 		this.phone = "";
 		this.address = "";
 		this.legalName = "";
-		this.accounts = new ArrayList<>();
+		this.accounts = null;
     }
 	
 	// Constructor for sending Profile Information
@@ -39,6 +39,35 @@ public final class ProfileMessage extends Message {
         this.legalName = legalName;
         this.accounts = List.copyOf(accounts);
     }
+
+	// Constructor for creating new Profile STEP 1: valid username
+	public ProfileMessage(SessionInfo session, String usernameToCheck) {
+        super(TYPE.CHECK_USERNAME_AVAILABILITY, session);
+        this.username = usernameToCheck.trim(); 
+        this.password = null;
+        this.phone = null;
+        this.address = null;
+        this.legalName = null;
+        this.accounts = null;
+    }
+
+	// Constructor for creating new Profile STEP 2: send over new info
+	public ProfileMessage(TYPE type, 
+			SessionInfo session, 
+			String username, 
+			String password, 
+			String phone, 
+			String address, 
+			String legalName) {
+		super(TYPE.CREATE_PROFILE, session);
+		this.username = username.trim();
+		this.password = password;
+		this.phone = phone;
+		this.address = address;
+		this.legalName = legalName;
+		this.accounts = null;
+	}
+
     public String getUsername() { 
     	return username; 
     }

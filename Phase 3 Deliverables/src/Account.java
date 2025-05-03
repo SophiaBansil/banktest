@@ -24,7 +24,7 @@ public abstract class Account {
 	}
 	public void addTransaction(Transaction trans) {
 		this.transactionHistory.add(trans);
-		this.balance.add(trans.getAmount());
+		this.balance = this.balance.add(trans.getAmount());
 	}
 	private void setID() {
         this.id = "ACC" + count++;

@@ -16,17 +16,15 @@ public class CentralServer {
 	private static final String saveFile = "database.ser";
 	private final Database DB;
 
-	
-	  // username -> password 
-	 private final Map<String, String> tellerDatabase;
-	 // username -> clientProfile objects
-	 private final Map<String, ClientProfile> clientDatabase;
-	 // id -> account objects
-	 private final Map<String, Account> accountDatabase;
-	 
-	 // username -> sessionInfo
-	 private final Map<String, SessionInfo> sessionIDs = new HashMap<>();
-	 
+	// username -> password
+	private final Map<String, String> tellerDatabase;
+	// username -> clientProfile objects
+	private final Map<String, ClientProfile> clientDatabase;
+	// id -> account objects
+	private final Map<String, Account> accountDatabase;
+
+	// username -> sessionInfo
+	private final Map<String, SessionInfo> sessionIDs = new HashMap<>();
 
 	// checks and prevent concurrent accounts, profiles, and tellers from being
 	// opened
@@ -50,9 +48,9 @@ public class CentralServer {
 		}
 
 		// initialize data structures owned by CentralServer;
-		this.tellerDatabase  = DB.getTellerDatabase();
-        this.clientDatabase  = DB.getClientDatabase();
-        this.accountDatabase = DB.getAccountDatabase();
+		this.tellerDatabase = DB.getTellerDatabase();
+		this.clientDatabase = DB.getClientDatabase();
+		this.accountDatabase = DB.getAccountDatabase();
 	}
 
 	// Runs the actual server
@@ -236,14 +234,22 @@ public class CentralServer {
 		BigDecimal amount;
 		try {
 			amount = new BigDecimal(msg.getAmount());
+
+			// check if string is negative
+			if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+				handler.sendMessage(new FailureMessage("Amount must be positive"));
+				return;
+			}
+
 		} catch (NumberFormatException e) {
 			handler.sendMessage(new FailureMessage("Invalid amount format."));
 			return;
 		}
 
-		Transaction.OPERATION operation = Transaction.OPERATION.valueOf(msg.getOperation().name());
+		Transaction.OPERATION operation = msg.getOperation();
 		Transaction trans = new Transaction(amount.toPlainString(), operation);
 
+	// APPLY LOCK
 		ReentrantLock lock = accountLocks.get(accountID);
 		if (lock == null || !lock.isHeldByCurrentThread()) {
 			handler.sendMessage(new FailureMessage("You are not authorized to edit this account."));
@@ -251,12 +257,47 @@ public class CentralServer {
 		}
 
 		try {
-			Account account =this.accountDatabase.get(accountID);
+			Account account = this.accountDatabase.get(accountID);
 			if (account == null) {
 				handler.sendMessage(new FailureMessage("Account not found."));
 				return;
 			}
 
+			// handle WITHDRAWAL
+			if (operation == Transaction.OPERATION.WITHDRAW) {
+				BigDecimal currentBalance = account.getBalance();
+				if (currentBalance == null) { // Defensive check
+					handler.sendMessage(new FailureMessage("Account balance unavailable."));
+					return; // Exit try-finally block
+				}
+				
+				// cannot overdraft on CHECKINGS or SAVINGS
+				if (account instanceof CheckingAccount || account instanceof SavingAccount) {
+					if (currentBalance.compareTo(amount) < 0) { // Is currentBalance < amount?
+						handler.sendMessage(new FailureMessage("Insufficient funds for this withdrawal."));
+						return; // Exit without applying transaction
+					}
+				}
+
+				// cannot exceed credit limit
+				else if (account instanceof CreditLine creditAccount) {
+					BigDecimal limit = creditAccount.getCreditLimit(); // Assuming CreditLine has getCreditLimit()
+					if (limit == null) {
+						 handler.sendMessage(new FailureMessage("Credit limit unavailable for this account."));
+						 return;
+					}
+					BigDecimal futureBalance = currentBalance.subtract(amount);
+					// negate debt for check
+					if (futureBalance.negate().compareTo(limit) > 0) {
+						handler.sendMessage(new FailureMessage("Withdrawal exceeds credit limit."));
+						return; 
+					}
+			   }
+			
+			}
+
+			// DEPOSIT logic is handled by addTransaction();
+			// apply transaction
 			try {
 				account.addTransaction(trans);
 				handler.sendMessage(new SuccessMessage("Transaction applied successfully."));
@@ -378,43 +419,40 @@ public class CentralServer {
 		updateLastActive(username);
 
 		// Step 4: Build AccountSummary list
-        List<AccountSummary> summaries = new ArrayList<>();
-        for (String accID : profile.getAccountIDs()) {
-            Account acc = accountDatabase.get(accID);
-            if (acc != null) {
-            	if (acc instanceof CheckingAccount) {
-            		summaries.add(new AccountSummary(
-            				acc.getID(), 
-            				AccountSummary.ACCOUNT_TYPE.CHECKING, 
-            				acc.getBalance()));
-            	}
-            	else if (acc instanceof SavingAccount) {
-            		summaries.add(new AccountSummary(
-            				acc.getID(), 
-            				AccountSummary.ACCOUNT_TYPE.SAVING, 
-            				acc.getBalance()));
-            	}
-            	else {
-            		summaries.add(new AccountSummary(
-            				acc.getID(), 
-            				AccountSummary.ACCOUNT_TYPE.CREDIT_LINE, 
-            				acc.getBalance()));
-            	}
-            }
-        }
+		List<AccountSummary> summaries = new ArrayList<>();
+		for (String accID : profile.getAccountIDs()) {
+			Account acc = accountDatabase.get(accID);
+			if (acc != null) {
+				if (acc instanceof CheckingAccount) {
+					summaries.add(new AccountSummary(
+							acc.getID(),
+							AccountSummary.ACCOUNT_TYPE.CHECKING,
+							acc.getBalance()));
+				} else if (acc instanceof SavingAccount) {
+					summaries.add(new AccountSummary(
+							acc.getID(),
+							AccountSummary.ACCOUNT_TYPE.SAVING,
+							acc.getBalance()));
+				} else {
+					summaries.add(new AccountSummary(
+							acc.getID(),
+							AccountSummary.ACCOUNT_TYPE.CREDIT_LINE,
+							acc.getBalance()));
+				}
+			}
+		}
 
-        // 5) Send ProfileMessage with summaries
-        ProfileMessage profileMsg = new ProfileMessage(
-            Message.TYPE.LOAD_PROFILE,
-            sessionIDs.get(username),
-            profile.getUsername(),
-            profile.getPassword(),
-            profile.getPhone(),
-            profile.getAddress(),
-            profile.getLegalName(),
-            summaries
-        );
-        
+		// 5) Send ProfileMessage with summaries
+		ProfileMessage profileMsg = new ProfileMessage(
+				Message.TYPE.LOAD_PROFILE,
+				sessionIDs.get(username),
+				profile.getUsername(),
+				profile.getPassword(),
+				profile.getPhone(),
+				profile.getAddress(),
+				profile.getLegalName(),
+				summaries);
+
 		// Step 6: Send the profile info (plus session info) back to the client
 		handler.sendMessage(profileMsg);
 	}
@@ -466,8 +504,7 @@ public class CentralServer {
 					s.getID(),
 					s.getBalance(),
 					s.getTransactionHistory(),
-					s.getWithdrawCount(),
-					s.getWithdrawLimit());
+					s.getWithdrawCount());
 		} else if (account instanceof CreditLine l) {
 			accountMsg = new AccountMessage(
 					Message.TYPE.LOAD_ACCOUNT,
@@ -527,7 +564,6 @@ public class CentralServer {
 						handler.sendMessage(new FailureMessage("Account not found."));
 						return;
 					}
-					saving.setWithdrawLimit(msg.getWithdrawalLimit());
 					break;
 
 				case CREDIT_LINE:
@@ -595,7 +631,7 @@ public class CentralServer {
 			return;
 
 		String account_id = msg.getID();
-		if (this.clientDatabase.get(username).getAccountID(username) == null)
+		if (this.clientDatabase.get(username).getAccountID(msg.getID()) == null)
 			return;
 
 		// Unlock the profile if this thread holds the lock

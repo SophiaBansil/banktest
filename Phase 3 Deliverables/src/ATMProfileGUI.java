@@ -16,6 +16,7 @@ public class ATMProfileGUI extends JFrame {
 
     /* --- State ------------------------------------------------------------ */
     private final ClientProfileApplication profileApp;
+    private final ATMApplication clientApp;
     private final List<Account> accounts;
     private final String username;
 
@@ -36,6 +37,10 @@ public class ATMProfileGUI extends JFrame {
         this.username   = username;
         this.accounts   = profileApp.getAccounts();
 
+    public ATMProfileGUI(ATMApplication app) {
+        this.clientApp = app;
+        // Retrieve the client's accounts from the application logic
+        this.accounts = clientApp.getAccounts();
         initLookAndFeel();
         initComponents();
     }
@@ -300,6 +305,13 @@ public class ATMProfileGUI extends JFrame {
 
     /* --- Launch helper (unchanged) ---------------------------------------- */
     public void display() { SwingUtilities.invokeLater(() -> setVisible(true)); }
+    private void updateAccountInfo() {
+        Account acc = (Account) accountCombo.getSelectedItem();
+        if (acc == null) return;
+        idLabel.setText("Account ID: " + acc.getID());
+        balanceLabel.setText("Balance: " + acc.getBalance().toString());
+        sharedLabel.setText("Shared Status: " + (acc.getTransactionHistory().size() > 1 ? "Shared" : "Single"));
+    }
 
    
 } // End of ATMProfileGUI class
