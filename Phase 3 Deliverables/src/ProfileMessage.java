@@ -1,4 +1,3 @@
-import java.util.ArrayList;
 import java.util.List;
 
 public final class ProfileMessage extends Message {
@@ -44,11 +43,11 @@ public final class ProfileMessage extends Message {
 	public ProfileMessage(SessionInfo session, String usernameToCheck) {
         super(TYPE.CHECK_USERNAME_AVAILABILITY, session);
         this.username = usernameToCheck.trim(); 
-        this.password = null;
-        this.phone = null;
-        this.address = null;
-        this.legalName = null;
-        this.accounts = null;
+        this.password = "";
+        this.phone = "";
+        this.address = "";
+        this.legalName = "";
+        this.accounts = List.copyOf(null);
     }
 
 	// Constructor for creating new Profile STEP 2: send over new info

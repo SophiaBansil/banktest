@@ -3,7 +3,6 @@ import java.math.BigDecimal;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -16,15 +15,17 @@ public class CentralServer {
 	private static final String saveFile = "database.ser";
 	private final Database DB;
 
-	// username -> password
-	private final Map<String, String> tellerDatabase;
-	// username -> clientProfile objects
-	private final Map<String, ClientProfile> clientDatabase;
-	// id -> account objects
-	private final Map<String, Account> accountDatabase;
-
-	// username -> sessionInfo
-	private final Map<String, SessionInfo> sessionIDs = new HashMap<>();
+	
+	  // username -> password 
+	 private final Map<String, String> tellerDatabase;
+	 // username -> clientProfile objects
+	 private final Map<String, ClientProfile> clientDatabase;
+	 // id -> account objects
+	 private final Map<String, Account> accountDatabase;
+	 
+	 // session_ids -> sessionInfo
+	 private final ConcurrentMap<String, SessionInfo> sessionIDs = new ConcurrentHashMap<>();
+	 
 
 	// checks and prevent concurrent accounts, profiles, and tellers from being
 	// opened
@@ -48,9 +49,9 @@ public class CentralServer {
 		}
 
 		// initialize data structures owned by CentralServer;
-		this.tellerDatabase = DB.getTellerDatabase();
-		this.clientDatabase = DB.getClientDatabase();
-		this.accountDatabase = DB.getAccountDatabase();
+		this.tellerDatabase  = DB.getTellerDatabase();
+        this.clientDatabase  = DB.getClientDatabase();
+        this.accountDatabase = DB.getAccountDatabase();
 	}
 
 	// Runs the actual server
@@ -81,13 +82,16 @@ public class CentralServer {
 
 	public void handleMessage(Message msg, ClientHandler handler) {
 		// Only allow login messages before authentication
-		if (!sessionIDs.containsKey(msg.getSession().getSessionID())) {
+		if (msg.getSession() == null) {
 			if (msg instanceof LoginMessage) {
 				handleLogin((LoginMessage) msg, handler);
 			} else {
 				handler.sendMessage(new FailureMessage("You must log in first."));
 			}
 			return;
+		}
+		if (sessionIDs.get(msg.getSession().getSessionID()) == null) {
+			handler.sendMessage(new FailureMessage("Unauthorized Client."));
 		}
 
 		// Once authenticated, delegate to role-based handlers
@@ -119,6 +123,9 @@ public class CentralServer {
 				case EXIT_PROFILE:
 					handleExitProfile((ProfileMessage) msg, handler);
 					break;
+				case CREATE_PROFILE:
+					handleCreateProfile((ProfileMessage) msg, handler);
+					break;
 				default:
 					break;
 			}
@@ -132,6 +139,9 @@ public class CentralServer {
 					break;
 				case DELETE_ACCOUNT:
 					handleDeleteAccount((AccountMessage) msg, handler);
+					break;
+				case CREATE_ACCOUNT:
+					handleCreateAccount((AccountMessage) msg, handler);
 					break;
 				case EXIT_ACCOUNT:
 					handleExitAccount((AccountMessage) msg, handler);
@@ -164,6 +174,48 @@ public class CentralServer {
 		} else {
 			handler.sendMessage(new FailureMessage("What you doing?"));
 		}
+	}
+
+	private void handleCreateAccount(AccountMessage msg, ClientHandler handler) {
+		SessionInfo session = msg.getSession();
+		String username = session.getUsername();
+	
+		// Step 1: Check if client profile exists
+		ClientProfile client = clientDatabase.get(username);
+		if (client == null) {
+			handler.sendMessage(new FailureMessage("Client profile not found."));
+			return;
+		}
+	
+		// Step 2: Create the account based on type (ID is generated inside the constructor)
+		Account newAccount;
+		try {
+			switch (msg.getAccountType()) {
+				case CHECKING:
+					newAccount = new CheckingAccount();
+					break;
+				case SAVING:
+					newAccount = new SavingAccount(msg.getWithdrawLimit());
+					break;
+				case CREDIT_LINE:
+					newAccount = new CreditLine(msg.getCreditLimit().toPlainString());
+					break;
+				default:
+					handler.sendMessage(new FailureMessage("Unsupported account type."));
+					return;
+			}
+		} catch (Exception e) {
+			handler.sendMessage(new FailureMessage("Failed to create account: " + e.getMessage()));
+			return;
+		}
+
+		// Step 4: Register the account in the system
+		accountDatabase.put(newAccount.getID(), newAccount);
+		client.addAccountID(newAccount.getID());  // Assuming `ClientProfile` has this method
+		accountLocks.putIfAbsent(newAccount.getID(), new ReentrantLock());
+
+		// Step 5: Confirm success
+		handler.sendMessage(new SuccessMessage("New account created successfully."));
 	}
 
 	// delegated method to handle client functions
@@ -203,7 +255,7 @@ public class CentralServer {
 		} else if (msg instanceof TransactionMessage) {
 			switch (msg.getType()) {
 				case TRANSACTION:
-					handleLoadProfile((ProfileMessage) msg, handler);
+					handleTransaction((TransactionMessage) msg, handler);
 					break;
 				default:
 					break;
@@ -222,109 +274,75 @@ public class CentralServer {
 	}
 
 	private void handleTransaction(TransactionMessage msg, ClientHandler handler) {
-		SessionInfo session = msg.getSession();
-		String accountID = msg.getAccountID(); // Assuming you meant account ID, not amount
-		String username = session.getUsername();
+		// 1. Parse amount
+	    BigDecimal amount;
+	    try {
+	        amount = new BigDecimal(msg.getAmount());
+	        if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+	            handler.sendMessage(new FailureMessage("Amount must be positive."));
+	            return;
+	        }
+	    } catch (NumberFormatException e) {
+	        handler.sendMessage(new FailureMessage("Invalid amount format."));
+	        return;
+	    }
 
-		if (accountID == null || username == null) {
-			handler.sendMessage(new FailureMessage("Missing session information."));
-			return;
-		}
+	    // 2. Acquire the lock
+	    String accountID = msg.getAccountID();
+	    ReentrantLock lock = accountLocks.get(accountID);
+	    try {
+	    	if (lock == null || !lock.isHeldByCurrentThread()) {
+	    	    handler.sendMessage(new FailureMessage("You are not authorized to edit this account."));
+	    	    return;
+	    	}
 
-		BigDecimal amount;
-		try {
-			amount = new BigDecimal(msg.getAmount());
+	        // 3. Load & authorize
+	        Account account = accountDatabase.get(accountID);
+	        if (account == null) {
+	            handler.sendMessage(new FailureMessage("Account not found."));
+	            return;
+	        }
+	        String username = msg.getSession().getUsername();
+	        if (clientDatabase.get(username).getAccountID(accountID) == null) {
+	            handler.sendMessage(new FailureMessage("Not authorized for this account."));
+	            return;
+	        }
+	        
+	        
+	        Transaction.OPERATION operation = Transaction.OPERATION.valueOf(msg.getOperation().name());
+	        // 4. Attempt the transaction
+	        Transaction tx = new Transaction(amount.toPlainString(), operation);
+	        account.addTransaction(tx);
 
-			// check if string is negative
-			if (amount.compareTo(BigDecimal.ZERO) <= 0) {
-				handler.sendMessage(new FailureMessage("Amount must be positive"));
-				return;
-			}
-
-		} catch (NumberFormatException e) {
-			handler.sendMessage(new FailureMessage("Invalid amount format."));
-			return;
-		}
-
-		Transaction.OPERATION operation = msg.getOperation();
-		Transaction trans = new Transaction(amount.toPlainString(), operation);
-
-	// APPLY LOCK
-		ReentrantLock lock = accountLocks.get(accountID);
-		if (lock == null || !lock.isHeldByCurrentThread()) {
-			handler.sendMessage(new FailureMessage("You are not authorized to edit this account."));
-			return;
-		}
-
-		try {
-			Account account = this.accountDatabase.get(accountID);
-			if (account == null) {
-				handler.sendMessage(new FailureMessage("Account not found."));
-				return;
-			}
-
-			// handle WITHDRAWAL
-			if (operation == Transaction.OPERATION.WITHDRAW) {
-				BigDecimal currentBalance = account.getBalance();
-				if (currentBalance == null) { // Defensive check
-					handler.sendMessage(new FailureMessage("Account balance unavailable."));
-					return; // Exit try-finally block
-				}
-				
-				// cannot overdraft on CHECKINGS or SAVINGS
-				if (account instanceof CheckingAccount || account instanceof SavingAccount) {
-					if (currentBalance.compareTo(amount) < 0) { // Is currentBalance < amount?
-						handler.sendMessage(new FailureMessage("Insufficient funds for this withdrawal."));
-						return; // Exit without applying transaction
-					}
-				}
-
-				// cannot exceed credit limit
-				else if (account instanceof CreditLine creditAccount) {
-					BigDecimal limit = creditAccount.getCreditLimit(); // Assuming CreditLine has getCreditLimit()
-					if (limit == null) {
-						 handler.sendMessage(new FailureMessage("Credit limit unavailable for this account."));
-						 return;
-					}
-					BigDecimal futureBalance = currentBalance.subtract(amount);
-					// negate debt for check
-					if (futureBalance.negate().compareTo(limit) > 0) {
-						handler.sendMessage(new FailureMessage("Withdrawal exceeds credit limit."));
-						return; 
-					}
-			   }
-			
-			}
-
-			// DEPOSIT logic is handled by addTransaction();
-			// apply transaction
-			try {
-				account.addTransaction(trans);
-				handler.sendMessage(new SuccessMessage("Transaction applied successfully."));
-			} catch (IllegalArgumentException | IllegalStateException e) {
-				handler.sendMessage(new FailureMessage(e.getMessage()));
-			}
-
-		} finally {
-			lock.unlock();
-		}
+	        handler.sendMessage(new SuccessMessage("Transaction applied successfully."));
+	        
+	    } catch (IllegalStateException | IllegalArgumentException e) {
+	        // Your subclasses throw IllegalStateException for anything from overdraft to credit-limit
+	        handler.sendMessage(new FailureMessage(e.getMessage()));
+	    } 
 	}
 
 	private void handleExitProfile(ProfileMessage msg, ClientHandler handler) {
 		SessionInfo session = msg.getSession();
 
-		String username = session.getUsername();
-		if (username == null)
-			return;
+	    String username = session.getUsername();
+	    if (username == null) {
+	        handler.sendMessage(new FailureMessage("Session is missing username."));
+	        return;
+	    }
 
-		// Unlock the profile if this thread holds the lock
-		ReentrantLock profileLock = profileLocks.get(username);
-		if (profileLock != null && profileLock.isHeldByCurrentThread()) {
-			profileLock.unlock();
-		}
+	    ReentrantLock profileLock = profileLocks.get(username);
+	    if (profileLock == null) {
+	        handler.sendMessage(new FailureMessage("No profile lock found to release."));
+	        return;
+	    }
 
-		handler.sendMessage(new SuccessMessage(
-				"Profile lock released successfully."));
+	    if (profileLock.isHeldByCurrentThread()) {
+	        profileLock.unlock();
+	        handler.sendMessage(new SuccessMessage("Profile lock released successfully."));
+	    } else {
+	        handler.sendMessage(new FailureMessage("Current thread does not own the profile lock."));
+	    }
 	}
 
 	private void handleDeleteProfile(ProfileMessage msg, ClientHandler handler) {
@@ -407,9 +425,8 @@ public class CentralServer {
 		}
 
 		// Step 2: Lock profile access
-		profileLocks.putIfAbsent(username, new ReentrantLock());
-		ReentrantLock lock = profileLocks.get(username);
-
+		// computeIfAbsent handles race conditions
+		ReentrantLock lock = profileLocks.computeIfAbsent(username, _ -> new ReentrantLock());
 		if (!lock.tryLock()) {
 			handler.sendMessage(new FailureMessage("Client profile is currently in use."));
 			return;
@@ -419,163 +436,202 @@ public class CentralServer {
 		updateLastActive(username);
 
 		// Step 4: Build AccountSummary list
-		List<AccountSummary> summaries = new ArrayList<>();
-		for (String accID : profile.getAccountIDs()) {
-			Account acc = accountDatabase.get(accID);
-			if (acc != null) {
-				if (acc instanceof CheckingAccount) {
-					summaries.add(new AccountSummary(
-							acc.getID(),
-							AccountSummary.ACCOUNT_TYPE.CHECKING,
-							acc.getBalance()));
-				} else if (acc instanceof SavingAccount) {
-					summaries.add(new AccountSummary(
-							acc.getID(),
-							AccountSummary.ACCOUNT_TYPE.SAVING,
-							acc.getBalance()));
-				} else {
-					summaries.add(new AccountSummary(
-							acc.getID(),
-							AccountSummary.ACCOUNT_TYPE.CREDIT_LINE,
-							acc.getBalance()));
-				}
-			}
-		}
+        List<AccountSummary> summaries = new ArrayList<>();
+        for (String accID : profile.getAccountIDs()) {
+            Account acc = accountDatabase.get(accID);
+            if (acc != null) {
+            	if (acc instanceof CheckingAccount) {
+            		summaries.add(new AccountSummary(
+            				acc.getID(), 
+            				AccountSummary.ACCOUNT_TYPE.CHECKING, 
+            				acc.getBalance()));
+            	}
+            	else if (acc instanceof SavingAccount) {
+            		summaries.add(new AccountSummary(
+            				acc.getID(), 
+            				AccountSummary.ACCOUNT_TYPE.SAVING, 
+            				acc.getBalance()));
+            	}
+            	else {
+            		summaries.add(new AccountSummary(
+            				acc.getID(), 
+            				AccountSummary.ACCOUNT_TYPE.CREDIT_LINE, 
+            				acc.getBalance()));
+            	}
+            }
+        }
 
-		// 5) Send ProfileMessage with summaries
-		ProfileMessage profileMsg = new ProfileMessage(
-				Message.TYPE.LOAD_PROFILE,
-				sessionIDs.get(username),
-				profile.getUsername(),
-				profile.getPassword(),
-				profile.getPhone(),
-				profile.getAddress(),
-				profile.getLegalName(),
-				summaries);
-
+        // Step 5: Send ProfileMessage with summaries
+        ProfileMessage profileMsg = new ProfileMessage(
+            Message.TYPE.LOAD_PROFILE,
+            sessionIDs.get(username),
+            profile.getUsername(),
+            profile.getPassword(),
+            profile.getPhone(),
+            profile.getAddress(),
+            profile.getLegalName(),
+            summaries
+        );
+        
 		// Step 6: Send the profile info (plus session info) back to the client
 		handler.sendMessage(profileMsg);
+	}
+	
+	private void handleCreateProfile(ProfileMessage msg, ClientHandler handler) {
+		SessionInfo session = msg.getSession();
+		String username = session.getUsername();
+
+		// Step 1: Check if profile already exists
+		if (clientDatabase.containsKey(username)) {
+			handler.sendMessage(new FailureMessage("USERNAME TAKEN"));
+			return;
+		}
+
+		// Step 2: Create a new ClientProfile
+		ClientProfile newProfile = new ClientProfile(
+				msg.getUsername(),
+				msg.getPassword(),
+				msg.getPhone(),
+				msg.getAddress(),
+				msg.getLegalName());
+
+		// Step 3: Save the new profile to the database
+		clientDatabase.put(username, newProfile);
+
+		// Step 4: Create a lock for this profile
+		profileLocks.putIfAbsent(username, new ReentrantLock());
+
+		// Step 5: Confirm success
+		handler.sendMessage(new SuccessMessage("New profile created successfully."));
 	}
 
 	// client requests an account by specifying the account id
 	private void handleLoadAccount(AccountMessage msg, ClientHandler handler) {
-		String username = msg.getSession().getUsername();
-		String account_id = msg.getID();
+	    String username = msg.getSession().getUsername();
+	    String account_id = msg.getID();
 
-		// Step 1. Check account exists in database
-		Account account = this.accountDatabase.get(account_id);
-		if (account == null) {
-			handler.sendMessage(new FailureMessage("Account not found."));
-			return;
-		}
+	    // Step 1. Check account exists in database
+	    Account account = this.accountDatabase.get(account_id);
+	    if (account == null) {
+	        handler.sendMessage(new FailureMessage("Account not found."));
+	        return;
+	    }
 
-		// Step 2: Check client profile owns account
-		if (this.clientDatabase.get(username).getAccountID(account_id) == null) {
-			handler.sendMessage(new FailureMessage("Unauthorized Account Access."));
-			return;
-		}
+	    // Step 2: Check client profile owns account
+	    if (this.clientDatabase.get(username).getAccountID(account_id) == null) {
+	        handler.sendMessage(new FailureMessage("Unauthorized Account Access."));
+	        return;
+	    }
 
-		// Step 3: Check if account is in use
-		accountLocks.putIfAbsent(username, new ReentrantLock());
-		ReentrantLock lock = accountLocks.get(username);
+	    // Step 3: Check if account is in use
+	    accountLocks.putIfAbsent(account_id, new ReentrantLock());
+	    ReentrantLock lock = accountLocks.get(account_id);
 
-		if (!lock.tryLock()) {
-			handler.sendMessage(new FailureMessage("Account is currently in use."));
-			return;
-		}
+	    if (!lock.tryLock()) {
+	        handler.sendMessage(new FailureMessage("Account is currently in use."));
+	        return;
+	    }
 
-		// Step 4: Update Session Activity
-		updateLastActive(username);
+	    // Step 4: Update Session Activity
+	    updateLastActive(username);
 
-		// Step 5: Determine which account instance class it is
-		// And create a suitable message to send to client
-		AccountMessage accountMsg;
-		if (account instanceof CheckingAccount c) {
-			accountMsg = new AccountMessage(
-					Message.TYPE.LOAD_ACCOUNT,
-					sessionIDs.get(username),
-					c.getID(),
-					c.getBalance(),
-					c.getTransactionHistory());
-		} else if (account instanceof SavingAccount s) {
-			accountMsg = new AccountMessage(
-					Message.TYPE.LOAD_ACCOUNT,
-					sessionIDs.get(username),
-					s.getID(),
-					s.getBalance(),
-					s.getTransactionHistory(),
-					s.getWithdrawCount());
-		} else if (account instanceof CreditLine l) {
-			accountMsg = new AccountMessage(
-					Message.TYPE.LOAD_ACCOUNT,
-					sessionIDs.get(username),
-					l.getID(),
-					l.getBalance(),
-					l.getTransactionHistory(),
-					l.getCreditLimit());
-		} else {
-			handler.sendMessage(new FailureMessage("Unsupported account type."));
-			lock.unlock();
-			return;
-		}
-		// Step 6: Send Account Information over network
-		handler.sendMessage(accountMsg);
+	    // Step 5: Determine account type and create appropriate message
+	    AccountMessage accountMsg;
+	    SessionInfo session = sessionIDs.get(username);  // cache session for reuse
+
+	    if (account instanceof CheckingAccount c) {
+	        accountMsg = new AccountMessage(
+	                Message.TYPE.LOAD_ACCOUNT,
+	                session,
+	                username,
+	                c.getID(),
+	                c.getBalance(),
+	                c.getTransHistory()
+	        );
+	    } else if (account instanceof SavingAccount s) {
+	        accountMsg = new AccountMessage(
+	                Message.TYPE.LOAD_ACCOUNT,
+	                session,
+	                username,
+	                s.getID(),
+	                s.getBalance(),
+	                s.getTransHistory(),
+	                s.getWithdrawCount(),
+	                s.getWithdrawLimit()
+	        );
+	    } else if (account instanceof CreditLine l) {
+	        accountMsg = new AccountMessage(
+	                Message.TYPE.LOAD_ACCOUNT,
+	                session,
+	                username,
+	                l.getID(),
+	                l.getBalance(),
+	                l.getTransHistory(),
+	                l.getCreditLimit()
+	        );
+	    } else {
+	        handler.sendMessage(new FailureMessage("Unsupported account type."));
+	        lock.unlock();
+	        return;
+	    }
+
+	    // Step 6: Send Account Information over network
+	    handler.sendMessage(accountMsg);
 	}
 
 	private void handleSaveAccount(AccountMessage msg, ClientHandler handler) {
 		SessionInfo session = msg.getSession();
-		String username = session.getUsername();
+		String username = session.getUsername(); // Or msg.getUsernameOwner() if needed
 		String accountID = msg.getID();
 
-		// Step 1. Check account exists in database
+		// Step 1: Check account exists
 		Account account = this.accountDatabase.get(accountID);
 		if (account == null) {
 			handler.sendMessage(new FailureMessage("Account not found."));
 			return;
 		}
 
-		// Step 2: Check client profile owns account
+		// Step 2: Verify client owns this account
 		if (this.clientDatabase.get(username).getAccountID(accountID) == null) {
 			handler.sendMessage(new FailureMessage("Unauthorized Account Access."));
 			return;
 		}
 
-		// Step 3: Validate session and lock
+		// Step 3: Ensure account is locked by this thread/session
 		ReentrantLock lock = accountLocks.get(accountID);
 		if (lock == null || !lock.isHeldByCurrentThread()) {
 			handler.sendMessage(new FailureMessage("Account not locked for editing."));
 			return;
 		}
 
-		// Step 4: Determine account type and save appropriately
+		// Step 4: Save updates based on account type
 		try {
 			switch (msg.getAccountType()) {
-				case CHECKING:
-					CheckingAccount checking = (CheckingAccount) this.accountDatabase.get(accountID);
-					if (checking == null) {
-						handler.sendMessage(new FailureMessage("Account not found."));
-						return;
-					}
-					break;
-
+//				case CHECKING: // redundant but additional functionality could be added later
+//					if (!(account instanceof CheckingAccount checking)) {
+//						handler.sendMessage(new FailureMessage("Account type mismatch."));
+//						return;
+//					}
+//					break;
 				case SAVING:
-					SavingAccount saving = (SavingAccount) this.accountDatabase.get(accountID);
-					if (saving == null) {
-						handler.sendMessage(new FailureMessage("Account not found."));
+					if (!(account instanceof SavingAccount saving)) {
+						handler.sendMessage(new FailureMessage("Account type mismatch."));
 						return;
 					}
+					saving.setWithdrawCount(msg.getWithdrawCount());
+					saving.setWithdrawLimit(msg.getWithdrawLimit());
 					break;
-
 				case CREDIT_LINE:
-					CreditLine credit = (CreditLine) this.accountDatabase.get(accountID);
-					if (credit == null) {
-						handler.sendMessage(new FailureMessage("Account not found."));
+					if (!(account instanceof CreditLine credit)) {
+						handler.sendMessage(new FailureMessage("Account type mismatch."));
 						return;
 					}
 					credit.setCreditLimit(msg.getCreditLimit().toString());
 					break;
+				default:
+					handler.sendMessage(new FailureMessage("Unsupported account type."));
+					return;
 			}
-
 			handler.sendMessage(new SuccessMessage("Account saved successfully."));
 		} catch (Exception e) {
 			handler.sendMessage(new FailureMessage("Failed to save account: " + e.getMessage()));
@@ -631,7 +687,7 @@ public class CentralServer {
 			return;
 
 		String account_id = msg.getID();
-		if (this.clientDatabase.get(username).getAccountID(msg.getID()) == null)
+		if (this.clientDatabase.get(username).getAccountID(username) == null)
 			return;
 
 		// Unlock the profile if this thread holds the lock
@@ -671,14 +727,14 @@ public class CentralServer {
 		// 3) Check the lock—or active-accounts—to ensure this user “owns” it
 		ReentrantLock acctLock = accountLocks.get(accountId);
 		if (acctLock == null || !acctLock.isHeldByCurrentThread()) {
-			handler.sendMessage(new FailureMessage("You must have the account open before sharing."));
-			return;
+		    handler.sendMessage(new FailureMessage("You are not authorized to edit this account."));
+		    return;
 		}
 
 		// 5) Verify the owner actually has the account in their profile
-		if (!(ownerProfile.getAccountID(accountId) == null)) {
-			handler.sendMessage(new FailureMessage("You do not own that account."));
-			return;
+		if (ownerProfile.getAccountID(accountId) == null) {
+		    handler.sendMessage(new FailureMessage("You do not own that account."));
+		    return;
 		}
 
 		// 6) Look up the target profile
@@ -765,9 +821,7 @@ public class CentralServer {
 	private void handleClientLogout(LogoutMessage msg, ClientHandler handler) {
 		// 1) Grab and remove the session
 		SessionInfo session = msg.getSession();
-		if (session != null) {
-			sessionIDs.remove(session.getUsername());
-		}
+		sessionIDs.remove(session.getSessionID());
 
 		// 2) Unlock profile
 		String username = msg.getSession().getUsername();
