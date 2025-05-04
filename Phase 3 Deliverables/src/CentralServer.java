@@ -81,6 +81,10 @@ public class CentralServer {
 	}
 
 	public void handleMessage(Message msg, ClientHandler handler) {
+		// handles disconnects (whether authenticated or not)
+		if (msg.getType() == Message.TYPE.DISCONNECT) {
+			handleClientDisconnect((DisconnectMessage) msg, handler);
+		}
 		// Only allow login messages before authentication
 		if (msg.getSession() == null) {
 			if (msg instanceof LoginMessage) {
@@ -105,6 +109,29 @@ public class CentralServer {
 			default:
 				handler.sendMessage(new FailureMessage("Unknown message type."));
 		}
+	}
+
+	private void handleClientDisconnect(DisconnectMessage msg, ClientHandler handler) {
+		String username = msg.getSession().getUsername();
+	    System.out.println("[Server] Client " + username + " has disconnected.");
+	    // Release locks, cleanup if needed
+	    ReentrantLock profileLock = profileLocks.get(username);
+	    if (profileLock != null && profileLock.isHeldByCurrentThread()) {
+	        profileLock.unlock();
+	        profileLocks.remove(username); // Clean up
+	    }
+
+	    ClientProfile profile = clientDatabase.get(username);
+	    String[] accountIDs = profile.getAccountIDs();
+	    // Handle account lock
+	    for (String accountID : accountIDs) {
+	        ReentrantLock accountLock = accountLocks.get(accountID);
+	        if (accountLock != null && accountLock.isHeldByCurrentThread()) {
+	            accountLock.unlock();
+	            accountLocks.remove(accountID); // Clean up
+	        }
+	    }
+	    client_list.remove(handler);
 	}
 
 	// delegated method to handle teller functions
