@@ -29,11 +29,11 @@ public class SavingAccount extends Account {
 		return withdrawLimit;
 	}
 	public void setWithdrawCount(int withdrawCount2) {
-		// ensure count is up-to-date before showing
-        checkReset();
 		this.withdrawCount = withdrawCount2;	
 	}
 	public int getWithdrawCount() {
+		// ensure count is up-to-date before showing
+        checkReset();
 		return withdrawCount;
 	}
 	/**-- Internal reset logic --**/
