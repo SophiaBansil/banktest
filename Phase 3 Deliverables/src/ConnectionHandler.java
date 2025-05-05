@@ -37,6 +37,21 @@ public class ConnectionHandler implements Runnable {
             out = new ObjectOutputStream(clientSocket.getOutputStream());
             out.flush();
             in = new ObjectInputStream(clientSocket.getInputStream());
+            
+            // Launch a separate thread for outgoing messages
+            new Thread(() -> {
+                try {
+                    while (!Thread.currentThread().isInterrupted()) {
+                        Message msgToSend = outgoingMssg.take(); // Blocks until a message is available
+                        synchronized (out) {
+                            out.writeObject(msgToSend);
+                            out.flush();
+                        }
+                    }
+                } catch (IOException | InterruptedException e) {
+                    System.err.println("Error sending message: " + e.getMessage());
+                }
+            }).start();
 
             reader = new Thread(this::readLoop);
             writer = new Thread(this::writeLoop);

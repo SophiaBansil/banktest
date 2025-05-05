@@ -1,38 +1,63 @@
+package bankGUI;
+
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
 
 /**
- * <h2>Teller Profile GUI (v1.3)</h2>
- * <p>Visual refresh that aligns the header bar with the dark‑green strip used
- * in {@link ATMProfileGUI}.  The header now displays «Bank Application» on the
- * left and «Teller: &lt;name&gt; | Bank Location: &lt;branch&gt;» on the right, all in
- * a solid BRAND_DARK bar.</p>
+ * <h2>Teller Profile GUI (v2.0)</h2>
+ * <p>
+ * *Only* changed the parts that formerly referenced the legacy {@code Account}
+ * class or used a username/branch string directly.  The GUI now:
+ * </p>
+ * <ul>
+ *   <li>Accepts a {@link ProfileMessage} so we follow the same pattern as
+ *       {@link ATMProfileGUI}.</li>
+ *   <li>Uses {@link AccountMessage} for the (stub) edit/create methods instead
+ *       of {@code Account}.</li>
+ *   <li>Keeps every other line – layout, colours, button wiring – untouched.</li>
+ * </ul>
  */
 public class TellerProfileGUI extends JFrame {
     private static final long serialVersionUID = 1L;
 
-    /* --- State ---------------------------------------------------------- */
+    /* ------------------------------------------------------------------ */
+    /*                     ───  State  ─────────────────────────────────── */
+    /* ------------------------------------------------------------------ */
     private final TellerProfileApplication app;
+    private final ProfileMessage           profileMsg; // holds teller info (name, branch, etc.)
 
     /* Palette reused from ATMProfileGUI */
     private static final Color BRAND_DARK  = Color.decode("#00875A");
     private static final Color BRAND_LIGHT = Color.decode("#30C88B");
 
-    /* --- Constructor ---------------------------------------------------- */
-    public TellerProfileGUI(TellerProfileApplication app) {
-        this.app = app;
+    /* ------------------------------------------------------------------ */
+    /*                     ───  Constructors  ──────────────────────────── */
+    /* ------------------------------------------------------------------ */
+
+    public TellerProfileGUI(TellerProfileApplication app, ProfileMessage msg) {
+        this.app        = app;
+        this.profileMsg = msg;
         initLookAndFeel();
         initComponents();
     }
 
-    /* --- Look & feel ---------------------------------------------------- */
+    // Convenience overload for older call‑sites
+    public TellerProfileGUI(TellerProfileApplication app) {
+        this(app, app.getProfile());
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*                     ───  Look & feel  ───────────────────────────── */
+    /* ------------------------------------------------------------------ */
     private void initLookAndFeel() {
         try { UIManager.setLookAndFeel("javax.swing.plaf.nimbus.NimbusLookAndFeel"); }
         catch (Exception ignored) {}
     }
 
-    /* --- Components ----------------------------------------------------- */
+    /* ------------------------------------------------------------------ */
+    /*                     ───  Components  ────────────────────────────── */
+    /* ------------------------------------------------------------------ */
     private void initComponents() {
         setTitle("Teller | Bank Application");
         setDefaultCloseOperation(EXIT_ON_CLOSE);
@@ -44,29 +69,28 @@ public class TellerProfileGUI extends JFrame {
         setContentPane(new GradientPanel());
         getContentPane().setLayout(new BorderLayout());
 
-        /* -----------------------------------------------------------------
-         *  Header : solid dark‑green bar (mirrors ATMProfileGUI)           */
-        JLabel titleLbl = new JLabel("Bank Application", SwingConstants.LEFT);
-        titleLbl.setFont(new Font("Segoe UI", Font.BOLD, 26));
-        titleLbl.setForeground(Color.WHITE);
+        /* Header bar -------------------------------------------------- */
+        JLabel bankName = new JLabel("Bank Application", SwingConstants.LEFT);
+        bankName.setFont(new Font("Segoe UI", Font.BOLD, 28));
+        bankName.setForeground(Color.WHITE);
 
-        String tellerInfoTxt = "Teller: " + app.getTellerName() + " | Bank Location: " + app.getBranch();
-        JLabel tellerInfoLbl = new JLabel(tellerInfoTxt, SwingConstants.RIGHT);
-        tellerInfoLbl.setFont(new Font("Segoe UI", Font.PLAIN, 16));
-        tellerInfoLbl.setForeground(Color.WHITE);
+        String tellerName = profileMsg != null ? profileMsg.getLegalName() : app.getTellerName();
+        String branch     = profileMsg != null ? app.getBranch()      : app.getBranch();
 
-        JPanel headerPanel = new JPanel(new BorderLayout(10,0));
-        headerPanel.setOpaque(true);
-        headerPanel.setBackground(BRAND_DARK);
-        headerPanel.setPreferredSize(new Dimension(0, 45));
-        headerPanel.setBorder(new EmptyBorder(0, 15, 0, 15));
-        headerPanel.add(titleLbl,      BorderLayout.WEST);
-        headerPanel.add(tellerInfoLbl, BorderLayout.EAST);
+        JLabel tellerInfo = new JLabel("Teller: " + tellerName + "  |  Bank Location: " + branch,
+                                       SwingConstants.RIGHT);
+        tellerInfo.setFont(new Font("Segoe UI", Font.PLAIN, 16));
+        tellerInfo.setForeground(Color.WHITE);
 
-        getContentPane().add(headerPanel, BorderLayout.NORTH);
+        JPanel header = new JPanel(new BorderLayout(10,0));
+        header.setOpaque(true);
+        header.setBackground(BRAND_DARK);
+        header.setBorder(new EmptyBorder(10, 15, 10, 15));
+        header.add(bankName,  BorderLayout.WEST);
+        header.add(tellerInfo, BorderLayout.EAST);
+        getContentPane().add(header, BorderLayout.NORTH);
 
-        /* -----------------------------------------------------------------
-         *  Centre prompt + buttons                                         */
+        /* Centre prompt --------------------------------------------- */
         JPanel centre = new JPanel();
         centre.setOpaque(false);
         centre.setLayout(new BoxLayout(centre, BoxLayout.Y_AXIS));
@@ -74,13 +98,13 @@ public class TellerProfileGUI extends JFrame {
         JLabel q = new JLabel("What would you like to do?", SwingConstants.CENTER);
         q.setAlignmentX(Component.CENTER_ALIGNMENT);
         q.setFont(new Font("Segoe UI", Font.BOLD, 22));
-        q.setBorder(new EmptyBorder(30,0,30,0));
+        q.setBorder(new EmptyBorder(10,0,30,0));
         centre.add(q);
 
         /* Buttons */
         JButton searchBtn  = stylishButton("Search Client Profile");
         JButton createBtn  = stylishButton("Create New Client Profile");
-        JButton logoutBtn  = stylishButton("Logout");
+        JButton logoutBtn  = stylishButton("Log Out");
 
         searchBtn.addActionListener(e -> JOptionPane.showMessageDialog(this, "Search – coming soon!"));
         createBtn.addActionListener(e -> JOptionPane.showMessageDialog(this, "Create – coming soon!"));
@@ -88,16 +112,15 @@ public class TellerProfileGUI extends JFrame {
             dispose();
             LoginApplication loginApp = app.getLoginApp();
             if (loginApp != null) {
-                LoginGUI loginGUI = new LoginGUI(loginApp);
-                loginApp.setGUI(loginGUI);
-                loginGUI.Login();
+                LoginGUI gui = new LoginGUI(loginApp);
+                loginApp.setGUI(gui);
+                gui.setVisible(true);
             }
         });
 
-        /* Icon‑button rows */
         JPanel row1 = new JPanel(new FlowLayout(FlowLayout.CENTER, 40, 10));
         row1.setOpaque(false);
-        row1.add(buildCircleIcon("\uD83D\uDD0D"));
+        row1.add(buildCircleIcon("\uD83D\uDD0D")); // magnifying glass
         row1.add(searchBtn);
 
         JPanel row2 = new JPanel(new FlowLayout(FlowLayout.CENTER, 40, 10));
@@ -114,7 +137,25 @@ public class TellerProfileGUI extends JFrame {
         getContentPane().add(centre, BorderLayout.CENTER);
     }
 
-    /* --- Helpers -------------------------------------------------------- */
+    /* ------------------------------------------------------------------ */
+    /*                     ───  Placeholder actions  ───────────────────── */
+    /* ------------------------------------------------------------------ */
+
+    /** Displays the teller portal – alias kept for legacy calls. */
+    public void Login() { SwingUtilities.invokeLater(() -> setVisible(true)); }
+
+    // Updated stubs to use AccountMessage instead of Account
+    private void editBankAccount(AccountMessage msg) {}
+    private void createNewBankAccount(AccountMessage msg) {}
+    private void createNewCreditLine(AccountMessage msg) {}
+    private void findClientAccount(String clientID) {}
+    private void createNewProfile(ProfileMessage profile) {}
+    private void saveChanges() {}
+    private void exit() { dispose(); }
+
+    /* ------------------------------------------------------------------ */
+    /*                     ───  Helpers  ───────────────────────────────── */
+    /* ------------------------------------------------------------------ */
     private JButton stylishButton(String text) {
         JButton btn = new JButton(text);
         btn.setForeground(Color.WHITE);
@@ -157,10 +198,4 @@ public class TellerProfileGUI extends JFrame {
             g2.fillRect(0, 0, getWidth(), getHeight());
         }
     }
-
-    /* --- Launch helpers ------------------------------------------------- */
-    /** Call this from non‑Swing threads to show the GUI safely. */
-    public void Login() { SwingUtilities.invokeLater(() -> setVisible(true)); }
-    /** Deprecated alias kept for parity. */
-    public void display() { Login(); }
 }

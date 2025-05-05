@@ -26,6 +26,7 @@ public class LoginGUI extends JFrame {
         } catch (Exception ignored) {}
     }
 
+    
     private void initComponents() {
         Color bg = Color.decode("#e0fff6");
 
@@ -76,6 +77,7 @@ public class LoginGUI extends JFrame {
                 )
             );
         }
+        tellerBtn.setBackground(toggleSel);
 
         JPanel togglePanel = new JPanel(new GridLayout(1,2,10,0));
         togglePanel.setOpaque(false);
@@ -170,7 +172,7 @@ public class LoginGUI extends JFrame {
     }
 
     /**
-     * This gets called by LoginApplication once the
+     * This gets called by your LoginApplication once the
      * ConnectionHandler sees SUCCESS or FAILURE.
      */
     public void handleAuthResult(Message msg) {
@@ -185,13 +187,16 @@ public class LoginGUI extends JFrame {
 
                 // launch the next GUI based on role
                 if (session.getRole() == SessionInfo.ROLE.TELLER) {
-                    TellerProfileApplication tApp =
-                        new TellerProfileApplication(loginApp, session);
+                	TellerProfileApplication tApp = new TellerProfileApplication(loginApp);
                     new TellerProfileGUI(tApp).Login();
                 } else {
-                    ATMProfileApplication cApp =
-                        new ATMProfileApplication(loginApp, session);
-                    new ATMProfileGUI(cApp).Login();
+                	ClientProfileApplication cApp =
+                            new ClientProfileApplication(loginApp);      // dummy stub
+
+                    ATMProfileGUI gui =
+                            new ATMProfileGUI(cApp, cApp.getProfile());  // needs ProfileMessage
+                    gui.setVisible(true);
+
                 }
 
             } else {
@@ -199,11 +204,11 @@ public class LoginGUI extends JFrame {
                 FailureMessage fail = (FailureMessage) msg;
                 JOptionPane.showMessageDialog(
                     this,
-                    fail.getMessage(),         
+                    fail.getMessage(),         // <-- getMessage() NOT getText()
                     "Login Failed",
                     JOptionPane.ERROR_MESSAGE
                 );
-                
+                // re-enable inputs here if you disabled them
             }
         });
     }
@@ -214,7 +219,7 @@ public class LoginGUI extends JFrame {
         );
     }
 
-    /** Kick off the UI */
+    /** Start off the UI */
     public void Login() {
         SwingUtilities.invokeLater(() -> setVisible(true));
     }
