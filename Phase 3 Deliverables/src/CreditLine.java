@@ -1,4 +1,5 @@
 import java.math.BigDecimal;
+import java.util.List;
 
 
 /* FROM DESIGN DOC:
@@ -11,8 +12,16 @@ public class CreditLine extends Account {
 	private BigDecimal creditLimit;  // maximum overdraft (positive amount)
 
     public CreditLine(String limit) {
+        super();
         this.creditLimit = new BigDecimal(limit);
     }
+
+    //constructor for client-side refresh
+    // constructor for client-side refresh
+	public CreditLine(String id, BigDecimal balance,  List<Transaction> history, BigDecimal limit) {
+		super(id, balance, history);
+        this.creditLimit = limit;
+	}
     
     public void setCreditLimit(String newLimit) {
         this.creditLimit = new BigDecimal(newLimit);

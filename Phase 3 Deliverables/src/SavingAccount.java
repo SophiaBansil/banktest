@@ -1,4 +1,6 @@
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 public class SavingAccount extends Account {
 	private int withdrawCount; // counts current withdraws made to account
@@ -20,6 +22,14 @@ public class SavingAccount extends Account {
 		this.lastReset = LocalDate.now();
         this.withdrawCount = 0;
 	}
+
+    // constructor for client-side account refresh
+    public SavingAccount(String id, BigDecimal balance, List<Transaction> history, int withdrawCount, int withdrawLimit) {
+        super(id, balance, history); 
+        this.withdrawLimit = withdrawLimit;
+        this.withdrawCount = withdrawCount;
+        this.lastReset = null; //  client never has to access this field
+    }
 	
 	public void setWithdrawLimit(int limit) {
 		this.withdrawLimit = limit;
@@ -35,6 +45,9 @@ public class SavingAccount extends Account {
         checkReset();
 		return withdrawCount;
 	}
+    public LocalDate getReset(){
+        return this.lastReset;
+    }
 	/**-- Internal reset logic --**/
     private void checkReset() {
         LocalDate now = LocalDate.now();

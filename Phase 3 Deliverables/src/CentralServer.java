@@ -212,9 +212,6 @@ public class CentralServer {
 				case LOAD_PROFILE:
 					handleLoadProfile((ProfileMessage) msg, handler);
 					break;
-				case SAVE_PROFILE:
-					handleSaveProfile((ProfileMessage) msg, handler);
-					break;
 				default:
 					break;
 			}
@@ -374,22 +371,18 @@ public class CentralServer {
 			return;
 		}
 
-		// Check the lock (this ensures only one active editor)
+		// check if locked
 		ReentrantLock lock = profileLocks.get(username);
 		if (lock == null || !lock.isHeldByCurrentThread()) {
 			handler.sendMessage(new FailureMessage("You do not own the profile lock."));
 			return;
 		}
 
-		// At this point, safe to update
 		current.setPhone(msg.getPhone());
 		current.setAddress(msg.getAddress());
 		current.setLegalName(msg.getLegalName());
-		// You can add password change logic if needed
-		if (session.getRole() == SessionInfo.ROLE.TELLER) {
 			current.setUsername(username);
 			current.setPassword(msg.getPassword());
-		}
 
 		handler.sendMessage(new SuccessMessage("Profile saved successfully."));
 	}
@@ -529,7 +522,7 @@ public class CentralServer {
 	                username,
 	                c.getID(),
 	                c.getBalance(),
-	                c.getTransHistory()
+	                c.getTransactionHistory()
 	        );
 	    } else if (account instanceof SavingAccount s) {
 	        accountMsg = new AccountMessage(
@@ -538,7 +531,7 @@ public class CentralServer {
 	                username,
 	                s.getID(),
 	                s.getBalance(),
-	                s.getTransHistory(),
+	                s.getTransactionHistory(),
 	                s.getWithdrawCount(),
 	                s.getWithdrawLimit()
 	        );
@@ -549,7 +542,7 @@ public class CentralServer {
 	                username,
 	                l.getID(),
 	                l.getBalance(),
-	                l.getTransHistory(),
+	                l.getTransactionHistory(),
 	                l.getCreditLimit()
 	        );
 	    } else {
@@ -627,7 +620,7 @@ public class CentralServer {
 		}
 	}
 	
-	private void handleCreateAccount(AccountMessage msg, ClientHandler handler) {
+	private void (AccountMessage msg, ClientHandler handler) {
 		//SessionInfo session = msg.getSession();
 		String username = msg.getUsername();
 	

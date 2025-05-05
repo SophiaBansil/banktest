@@ -1,4 +1,5 @@
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
 public final class AccountMessage extends Message {
@@ -19,6 +20,7 @@ public final class AccountMessage extends Message {
 	// Type-specific 
 	private final int withdrawCount; // Only for savings
 	private final int withdrawLimit; // Only for savings
+	private LocalDate reset;		// only for savings
 	private final String creditLimit; // Only for creditLimit
 	
 
@@ -82,7 +84,8 @@ public final class AccountMessage extends Message {
 			BigDecimal balance, 
 			List<Transaction> transactionHistory,
             int withdrawCount,
-            int withdrawLimit) 
+            int withdrawLimit,
+			LocalDate lastReset) 
 	{
 		super(type, session);
 		this.account_type = ACCOUNT_TYPE.SAVING;
@@ -93,6 +96,7 @@ public final class AccountMessage extends Message {
 		this.withdrawCount = withdrawCount;
 		this.withdrawLimit = withdrawLimit;
 		this.creditLimit = "0";
+		this.reset = lastReset;
 	}
 
 	// Constructor for Line of Credit

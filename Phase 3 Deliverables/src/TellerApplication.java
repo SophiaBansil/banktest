@@ -55,7 +55,73 @@ public class TellerApplication {
     }
 
     public Boolean deleteProfile(){
+    public boolean changeProfileInfo( 
+        String username, 
+        String password, 
+        String phone, 
+        String address, 
+        String legalName){
+        ProfileMessage msg = new ProfileMessage(Message.TYPE.SAVE_PROFILE, 
+        this.session, 
+        username, 
+        password, 
+        phone, 
+        address, 
+        legalName, 
+        this.accounts);
+
+        handler.send(msg);
+
+        try {
+            Message response = handler.getMessage();
+            
+            if (response instanceof SuccessMessage) {
+                requestProfile(); // update locally
+                return true;
+            } else if (response instanceof FailureMessage) {
+                System.out.println("Profile Update failed: " + 
+                    ((FailureMessage) response).getMessage());
+                return false;
+            }
+        } catch (Exception e) {
+            System.out.println("Failed to update profile");
+        }
+        return false;
+
+    }
+
+    public Boolean deleteProfile(){
         // send mssg of type DELETE_PROFILE
+        // handleDeleteProfile only needs username & pw
+        ProfileMessage delProfile = new ProfileMessage(Message.TYPE.DELETE_PROFILE, 
+            this.session, 
+            profile.getUsername(), 
+            profile.getPassword(), 
+            profile.getPhone(), 
+            profile.getAddress(), 
+            profile.getLegalName(), 
+            this.accounts);
+
+        handler.send(delProfile);
+
+        try {
+            Message response = handler.getMessage();
+            
+            if (response instanceof SuccessMessage) {
+                return true;
+            } else if (response instanceof FailureMessage) {
+                System.out.println("Profile Deletion failed: " + 
+                    ((FailureMessage) response).getMessage());
+                return false;
+            }
+        } catch (Exception e) {
+            System.out.println("Failed to delete profile");
+        }
+        return false;
+
+        // return to Teller homepage
+    }
+    public boolean deleteAccount(String id) {
         // handleDeleteProfile only needs username & pw
         ProfileMessage delProfile = new ProfileMessage(Message.TYPE.DELETE_PROFILE, 
             this.session, 
@@ -111,8 +177,59 @@ public class TellerApplication {
         return false;
 
     }
-    public void addAccount(String type){
+
+    // GUI MUST pass in either CHECKING, SAVING, or CREDIT_LINE as input
+    // in GUI only take in String if creating credit account
+    public void addAccount(String type, String creditLimit){
+
+        AccountMessage.ACCOUNT_TYPE newType;
+        try {
+            // cast to ACCOUNT_TYPE enum
+            newType = AccountMessage.ACCOUNT_TYPE.valueOf(type.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            System.err.println("Invalid account type received: " + type);
+             throw new IllegalArgumentException("Illegal account type specified: " + type);
+        }
+
         // send mssg of type CREATE_ACCOUNT
+        Account msg = new Account()
+    }
+
+    public Boolean createNewProfile(String username, 
+        String password, 
+        String phone, 
+        String address, 
+        String legalName){
+        // create ProfileMessage of type CREATE_PROFILE
+        ProfileMessage newProfile = new ProfileMessage(Message.TYPE.CREATE_PROFILE, 
+            this.session, 
+            username, 
+            password, 
+            phone, 
+            address, 
+            legalName);
+        // send over to server
+        handler.send(newProfile);
+        // BLOCK and wait for response
+        try {
+            Message response = handler.getMessage();
+            
+            if (response instanceof SuccessMessage) {
+                return true;
+            } else if (response instanceof FailureMessage) {
+                System.out.println("Profile creation failed: " + 
+                    ((FailureMessage) response).getMessage());
+                return false;
+            }
+        } catch (Exception e) {
+            System.out.println("Failed to create profile");
+        }
+        return false;
+
+        // return to teller homepage
+    
+    }
+
         Account msg = new Account()
     }
 
@@ -229,6 +346,7 @@ public class TellerApplication {
 
     public void loadAccount(String accID) {
         Message loadAccMsg = new AccountMessage(Message.TYPE.LOAD_ACCOUNT, this.session, this.profile.getUsername(), accID );
+        Message loadAccMsg = new AccountMessage(Message.TYPE.LOAD_ACCOUNT, this.session, this.profile.getUsername(), accID );
         handler.send(loadAccMsg);
     
         try {
@@ -276,7 +394,48 @@ public class TellerApplication {
         }
     }
 
+    //
+    // retrieves profile info. call after any updates are made
+    // 
+    public void requestProfile(){
+        // create ProfileMessage object to send
+        Message profileMessage = new ProfileMessage(Message.TYPE.LOAD_PROFILE, session);
+        // send to server via handler
+        handler.send(profileMessage);
+
+        // BLOCK and wait for server response
+        try{
+            Message serverResponse = handler.getMessage();
+            if (serverResponse.getType() == Message.TYPE.LOAD_PROFILE && serverResponse instanceof ProfileMessage){
+                // cast serverResponse to ProfileMessage
+                ProfileMessage msg = (ProfileMessage) serverResponse;
+                // create ClientProfile object from server response
+                this.profile = new ClientProfile(
+                msg.getUsername(),
+                msg.getPassword(), 
+                msg.getPhone(),
+                msg.getAddress(), 
+                msg.getLegalName());  
+                this.accounts = msg.getSummaries();
+            } else if ( serverResponse.getType() == Message.TYPE.FAILURE && serverResponse instanceof FailureMessage){
+                // cast to FailureMessage
+                FailureMessage msg = (FailureMessage) serverResponse;
+                System.out.println("Error: " + msg.getMessage());
+            } else {
+                System.out.println("Error: unexpected message type received");
+            }
+        } catch (Exception e) { // ConnectionHandler.getMessage() throws an InterruptedException
+            System.out.println("Request interrupted");
+        }
+    }
+
     public void exitAccount() {
+        Message msg = new AccountMessage(
+            Message.TYPE.EXIT_ACCOUNT,
+            this.session, 
+            this.profile.getUsername(), 
+            this.account.getID());
+
         Message msg = new AccountMessage(
             Message.TYPE.EXIT_ACCOUNT,
             this.session, 
@@ -286,6 +445,33 @@ public class TellerApplication {
         handler.send(msg);
         // return to clientprofile screen
     }
+
+    // IMPlement~~~~~~~~~~~~~~~~
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    public void exitProfile() {
+        
+    }
+
+    public void logoutTeller(){
+        Message logoutMsg = new LogoutMessage(
+            Message.TYPE.LOGOUT_TELLER, 
+            this.session
+        );
+        handler.send(logoutMsg);
+
+        Message msg = handler.getMessage();
+        if (msg instanceof SuccessMessage) {
+            System.out.println("Logged out successfully: " + ((SuccessMessage) msg).getMessage());
+
+        }
+
+        handler.setLoggedOut(true);
+        handler.shutDown();
+    }
+
+    
 
     // IMPlement~~~~~~~~~~~~~~~~
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -354,10 +540,13 @@ public class TellerApplication {
     }
 
     
+
+    
     private boolean refreshAccount(){
 
         if (account == null) return false;
         // send LOAD_ACCOUNT request
+        AccountMessage requestMsg = new AccountMessage(Message.TYPE.LOAD_ACCOUNT, session, this.profile.getUsername(), account.getID());
         AccountMessage requestMsg = new AccountMessage(Message.TYPE.LOAD_ACCOUNT, session, this.profile.getUsername(), account.getID());
         handler.send(requestMsg);
         // BLOCK client to wait for response
@@ -374,7 +563,7 @@ public class TellerApplication {
                     this.account = createSavingAccount(msg);
                     break;
                 case CREDIT_LINE:
-                    this.account = createCreditLineAccount(msg);
+                    this.account = createCreditAccount(msg);
                     break;
                 default:
                     throw new IllegalStateException("Unknown account type");
@@ -390,17 +579,18 @@ public class TellerApplication {
     }
 
     private Account createCheckingAccount(AccountMessage msg) {
-        CheckingAccount account = new CheckingAccount();
+
+        CheckingAccount account = new CheckingAccount(msg.getID(), msg.getBalance(), msg.getTransactionHistory());
         return account;
-    }
+   }
     
     private Account createSavingAccount(AccountMessage msg) {
-        SavingAccount account = new SavingAccount();
+        SavingAccount account = new SavingAccount(msg.getID(), msg.getBalance(), msg.getTransactionHistory(), msg.getWithdrawCount(), msg.getWithdrawLimit());
         return account;
     }
     
-    private Account createCreditLineAccount(AccountMessage msg) {
-        CreditLine account = new CreditLine(msg.getCreditLimit().toString());
-        return account;
+    private Account createCreditAccount(AccountMessage msg) {
+       CreditLine account = new CreditLine(msg.getID(), msg.getBalance(),msg.getTransactionHistory(), msg.getCreditLimit() );
+       return account;
     }
 }

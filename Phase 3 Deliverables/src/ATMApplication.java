@@ -1,5 +1,6 @@
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -204,7 +205,7 @@ public class ATMApplication {
                     this.account = createSavingAccount(msg);
                     break;
                 case CREDIT_LINE:
-                    this.account = createCreditLineAccount(msg);
+                    this.account = createCreditAccount(msg);
                     break;
                 default:
                     throw new IllegalStateException("Unknown account type");
@@ -221,18 +222,28 @@ public class ATMApplication {
     
      
     private Account createCheckingAccount(AccountMessage msg) {
-        CheckingAccount account = new CheckingAccount();
+        String id = msg.getID();
+        BigDecimal balance = msg.getBalance();
+        List<Transaction> history = msg.getTransactionHistory();
+
+        CheckingAccount account = new CheckingAccount(id, balance, history);
         return account;
-    }
+   }
     
     private Account createSavingAccount(AccountMessage msg) {
-        SavingAccount account = new SavingAccount();
+        String id = msg.getID();
+        BigDecimal balance = msg.getBalance(); 
+        List<Transaction> history = msg.getTransactionHistory(); 
+        int withdrawCount = msg.getWithdrawCount();
+        int withdrawLimit = msg.getWithdrawLimit();
+
+        SavingAccount account = new SavingAccount(msg.getID(), msg.getBalance(), msg.getTransactionHistory(), msg.getWithdrawCount(), msg.getWithdrawLimit());
         return account;
     }
     
-    private Account createCreditLineAccount(AccountMessage msg) {
-        CreditLine account = new CreditLine(msg.getCreditLimit().toString());
-        return account;
+    private Account createCreditAccount(AccountMessage msg) {
+       CreditLine account = new CreditLine(msg.getID(), msg.getBalance(),msg.getTransactionHistory(), msg.getCreditLimit() );
+       return account;
     }
 
     public String formatAmount(Transaction t) {

@@ -13,6 +13,13 @@ public abstract class Account {
         this.transactionHistory = new ArrayList<>();
         setID();
     }
+
+	//constructor for client-side account refresh;
+	protected Account(String id, BigDecimal b, List<Transaction> history) {
+		this.id = id;
+		this.balance = b;
+		this.transactionHistory = new ArrayList<>();
+	 }
 	public BigDecimal getBalance() {
 		return this.balance;
 	}
