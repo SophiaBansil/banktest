@@ -40,8 +40,7 @@ public class CentralServer {
 
 	public CentralServer() {
 		Database fooDB = Database.loadDatabase(saveFile);
-		// load in database info
-		Database.loadDatabase(saveFile);
+		// load in database info if needed
 		if (fooDB == null) {
 			System.out.println("Starting with fresh database");
 			DB = Database.getInstance();

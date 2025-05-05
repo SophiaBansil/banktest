@@ -17,7 +17,7 @@ public abstract class Account implements Serializable{
 	protected Account(String id, BigDecimal b, List<Transaction> history) {
 		this.id = id;
 		this.balance = b;
-		this.transactionHistory = new ArrayList<>();
+		this.transactionHistory = history;
 	 }
 	public BigDecimal getBalance() {
 		return this.balance;
