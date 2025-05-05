@@ -19,12 +19,12 @@ public abstract class Account {
 	public String getID() {
 		return this.id;
 	}
-	public List<Transaction> getTransHistory() {
+	public List<Transaction> getTransactionHistory() {
 		return this.transactionHistory;
 	}
 	public void addTransaction(Transaction trans) {
 		this.transactionHistory.add(trans);
-		this.balance.add(trans.getAmount());
+		this.balance = this.balance.add(trans.getAmount());
 	}
 	private void setID() {
         this.id = "ACC" + count++;

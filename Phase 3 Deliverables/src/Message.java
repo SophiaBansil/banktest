@@ -10,18 +10,19 @@ public abstract class Message implements Serializable {
 	    LOGOUT_TELLER,
 	    SUCCESS,
 	    FAILURE,
-	    LOAD_ALL_ACCOUNTS,
 	    LOAD_ACCOUNT,
-	    LOAD_PROFILE,
-	    SAVE_PROFILE,
+	    CREATE_ACCOUNT,
 	    SAVE_ACCOUNT,
 	    SHARE_ACCOUNT,
 	    DELETE_ACCOUNT,
+	    LOAD_PROFILE,
+	    SAVE_PROFILE,
+	    CREATE_PROFILE,
 	    DELETE_PROFILE,
 	    EXIT_ACCOUNT,
 	    EXIT_PROFILE,
 	    TRANSACTION,
-	    SHUTDOWN
+	    SHUTDOWN, 
 	}
 	
 	private final TYPE type;

@@ -11,62 +11,107 @@ public final class AccountMessage extends Message {
 	}
 
 	private final ACCOUNT_TYPE account_type;
+	private final String username_owner;
 	private final String id;
 	private final String balance; // Now a String
 	private final List<Transaction> transactionHistory;
 
-	// Type-specific (optional) fields
+	// Type-specific 
 	private final int withdrawCount; // Only for savings
-	private final int withdrawalLimit; // Only for savings
-	private final String creditLimit; // Now a String
+	private final int withdrawLimit; // Only for savings
+	private final String creditLimit; // Only for creditLimit
+	
 
 	// Constructor for Requests
-	public AccountMessage(TYPE type, SessionInfo session, String account_id, ACCOUNT_TYPE account_type) {
+	public AccountMessage(TYPE type, SessionInfo session, String username, String account_id) {
 		super(type, session);
-		this.account_type = account_type;
+		this.account_type = null;
 		this.id = account_id;
+		this.username_owner = username;
 		this.balance = "0";
 		this.transactionHistory = null;
 		this.withdrawCount = 0;
-		this.withdrawalLimit = 0;
+		this.withdrawLimit = 0;
 		this.creditLimit = "0";
 	}
 
+	// Constructor for CREATE_NEW_ACCOUNT
+	public AccountMessage(SessionInfo session, String username, ACCOUNT_TYPE type, String creditLim) {
+        super(TYPE.CREATE_ACCOUNT, session); 
+		
+		this.username_owner = username;
+        this.account_type = type;
+        this.withdrawLimit = 0;
+        this.id = null; 
+        this.balance = "0";
+        this.transactionHistory = null;
+        this.withdrawCount = 0;
+		
+		if (type == ACCOUNT_TYPE.CREDIT_LINE) {
+            
+            this.creditLimit = creditLim;
+        } else {
+             this.creditLimit = "0";
+		}
+    }
+
 	// Constructor for Checking
-	public AccountMessage(TYPE type, SessionInfo session, String id, BigDecimal balance, List<Transaction> transactionHistory) {
-		super(type, session);
-		this.account_type = ACCOUNT_TYPE.CHECKING;
-		this.id = id;
-		this.balance = balance.toPlainString();
-		this.transactionHistory = transactionHistory;
-		this.withdrawCount = 0;
-		this.withdrawalLimit = 0;
-		this.creditLimit = "0";
+	public AccountMessage(TYPE type, 
+			SessionInfo session, 
+			String username, 
+			String id, 
+			BigDecimal balance, 
+			List<Transaction> transactionHistory) 
+	{
+	    super(type, session);
+	    this.account_type = ACCOUNT_TYPE.CHECKING;
+	    this.id = id;
+	    this.username_owner = username; // ✅ added
+	    this.balance = balance.toPlainString();
+	    this.transactionHistory = transactionHistory;
+	    this.withdrawCount = 0;
+	    this.withdrawLimit = 0;
+	    this.creditLimit = "0";
 	}
 
 	// Constructor for Savings
-	public AccountMessage(TYPE type, SessionInfo session, String id, BigDecimal balance, List<Transaction> transactionHistory,
-	                      int withdrawCount, int withdrawalLimit) {
+	public AccountMessage(TYPE type, 
+			SessionInfo session, 
+			String username, 
+			String id, 
+			BigDecimal balance, 
+			List<Transaction> transactionHistory,
+            int withdrawCount,
+            int withdrawLimit) 
+	{
 		super(type, session);
 		this.account_type = ACCOUNT_TYPE.SAVING;
 		this.id = id;
+		this.username_owner = username;
 		this.balance = balance.toPlainString();
 		this.transactionHistory = transactionHistory;
 		this.withdrawCount = withdrawCount;
-		this.withdrawalLimit = withdrawalLimit;
+		this.withdrawLimit = withdrawLimit;
 		this.creditLimit = "0";
 	}
 
 	// Constructor for Line of Credit
-	public AccountMessage(TYPE type, SessionInfo session, String id, BigDecimal balance, List<Transaction> transactionHistory,
-	                      BigDecimal creditLimit) {
+	public AccountMessage(TYPE type, 
+			SessionInfo session, 
+			String username, 
+			String id, 
+			BigDecimal balance, 
+			List<Transaction> transactionHistory,
+            BigDecimal creditLimit) 
+	{
 		super(type, session);
 		this.account_type = ACCOUNT_TYPE.CREDIT_LINE;
 		this.id = id;
+		this.username_owner = username;
 		this.balance = balance.toPlainString();
 		this.transactionHistory = transactionHistory;
 		this.withdrawCount = 0;
-		this.withdrawalLimit = 0;
+		this.withdrawLimit = 0;
 		this.creditLimit = creditLimit.toPlainString();
 	}
 
@@ -86,13 +131,17 @@ public final class AccountMessage extends Message {
 	public List<Transaction> getTransactionHistory() {
 		return transactionHistory;
 	}
+	
+	public int getWithdrawLimit() {
+		return withdrawLimit;
+	}
 
 	public int getWithdrawCount() {
 		return withdrawCount;
 	}
-
-	public int getWithdrawalLimit() {
-		return withdrawalLimit;
+	
+	public String getUsername() {
+		return username_owner;
 	}
 
 	public BigDecimal getCreditLimit() {

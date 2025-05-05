@@ -1,4 +1,3 @@
-import java.util.ArrayList;
 import java.util.List;
 
 public final class ProfileMessage extends Message {
@@ -19,7 +18,7 @@ public final class ProfileMessage extends Message {
 		this.phone = "";
 		this.address = "";
 		this.legalName = "";
-		this.accounts = new ArrayList<>();
+		this.accounts = null;
     }
 	
 	// Constructor for sending Profile Information
@@ -39,6 +38,25 @@ public final class ProfileMessage extends Message {
         this.legalName = legalName;
         this.accounts = List.copyOf(accounts);
     }
+
+
+	// Constructor for creating new Profile
+	public ProfileMessage(TYPE type, 
+			SessionInfo session, 
+			String username, 
+			String password, 
+			String phone, 
+			String address, 
+			String legalName) {
+		super(TYPE.CREATE_PROFILE, session);
+		this.username = username.trim();
+		this.password = password;
+		this.phone = phone;
+		this.address = address;
+		this.legalName = legalName;
+		this.accounts = null;
+	}
+
     public String getUsername() { 
     	return username; 
     }
