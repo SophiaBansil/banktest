@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 public abstract class Account implements Serializable{
-	private static int count = 1;
 	private String id;
 	private BigDecimal balance;
 	private List<Transaction> transactionHistory;
