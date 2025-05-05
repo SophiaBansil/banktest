@@ -11,20 +11,9 @@ public final class ProfileMessage extends Message {
 	private final List<AccountSummary> accounts;
 	
 	// Constructor for requesting Profile Information
-	public ProfileMessage(TYPE type, SessionInfo session) {
+	public ProfileMessage(TYPE type, SessionInfo session, String username) {
 		super(type, session);
-		this.username = "";
-		this.password = "";
-		this.phone = "";
-		this.address = "";
-		this.legalName = "";
-		this.accounts = null;
-    }
-
-	// Constructor for requesting EXIT_PROFILE and LOAD_PROFILE
-	public ProfileMessage(TYPE type, SessionInfo session, String name) {
-		super(type, session);
-		this.username = name;
+		this.username = username;
 		this.password = "";
 		this.phone = "";
 		this.address = "";
@@ -50,8 +39,18 @@ public final class ProfileMessage extends Message {
         this.accounts = List.copyOf(accounts);
     }
 
+//	// Constructor for creating new Profile STEP 1: valid username (unnecessary, failureMessages with a string message should suffice)
+//	public ProfileMessage(SessionInfo session, String usernameToCheck) {
+//        super(TYPE.CHECK_USERNAME_AVAILABILITY, session);
+//        this.username = usernameToCheck.trim(); 
+//        this.password = "";
+//        this.phone = "";
+//        this.address = "";
+//        this.legalName = "";
+//        this.accounts = List.copyOf(null);
+//    }
 
-	// Constructor for creating new Profile
+	// Constructor for creating new Profile STEP 2: send over new info
 	public ProfileMessage(TYPE type, 
 			SessionInfo session, 
 			String username, 
