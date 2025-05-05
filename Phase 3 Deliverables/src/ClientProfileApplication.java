@@ -61,16 +61,12 @@ public class ClientProfileApplication {
 
     // this sends all profile info to gui
    /*  public void loadProfile(){
-        if (gui != null && profile != null) {
-            gui.displayProfile(profile); 
-        }
+
     } */
 
     // this sends all accountsummary.java info to gui for account thumbnails
     /*public void loadAccounts(){
-        if (gui != null && accounts != null) {
-            gui.displayAccounts(accounts); 
-        }
+     
     }*/
 
 

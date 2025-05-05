@@ -47,7 +47,8 @@ public class LoginApplication {
                 // cast to successMessage & manage new session ID
                 SuccessMessage msg = (SuccessMessage) serverResponse;
                 SessionInfo session = msg.getSession();
-
+                handler.setCurrentSession(session);
+                
                 tellerApp = new TellerApplication();
                 tellerApp.setConnectionHandler(handler);
                 tellerApp.setSession(session);

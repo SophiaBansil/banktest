@@ -1,8 +1,9 @@
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
-public class Transaction {
+public class Transaction implements Serializable {
 	public enum OPERATION {
 		WITHDRAW,
 		DEPOSIT

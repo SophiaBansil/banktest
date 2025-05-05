@@ -85,21 +85,52 @@ public class ATMApplication {
         }
     }
 
-    // loads in all account data once an account is chosen from
-    // ClientApplication
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~` BLOCKS~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    public void loadAccount(String accID) {
+    // loads in all account data once an account is chosen from ClientApplication
+    public Boolean loadAccount(String accID) {
         Message loadAccMsg = new AccountMessage(Message.TYPE.LOAD_ACCOUNT, this.session, this.client.getUsername(), accID );
         handler.send(loadAccMsg);
     
         try {
-            if (refreshAccount()) {
-                // RELAY ACCOUNT TO GUI
-                //gui.displayAccountDetails(account);
+            Message serverResponse = handler.getMessage(); 
+    
+            if (serverResponse instanceof AccountMessage) {
+                AccountMessage msg = (AccountMessage) serverResponse;
+                switch (msg.getAccountType()) {
+                    case CHECKING:
+                        this.account = createCheckingAccount(msg);
+                        break;
+                    case SAVING:
+                        this.account = createSavingAccount(msg);
+                        break;
+                    case CREDIT_LINE:
+                        this.account = createCreditAccount(msg);
+                        break;
+                    default:
+                         // Should not happen if server sends valid type
+                        System.err.println("Received unknown account type from server.");
+                        this.account = null;
+                        return false;
+                }
+                System.out.println("Account " + this.account.getID() + " loaded successfully.");
+                return true; 
+            } else if (serverResponse instanceof FailureMessage) {
+                System.err.println("Failed to load account " + accID + ": " + ((FailureMessage) serverResponse).getMessage());
+                this.account = null; 
+                return false;
+            } else if (serverResponse == null) {
+                 System.err.println("Timeout or interruption while waiting for account load response.");
+                 this.account = null;
+                 return false;
+            }
+             else {
+                System.err.println("Received something unexpected " + serverResponse.getClass().getName());
+                 this.account = null;
+                return false;
             }
         } catch (Exception e) {
-            System.out.println("Account loading interrupted.");
+            System.err.println("Error during loadaccount: " + e.getMessage());
+             this.account = null;
+            return false;
         }
     }
 
@@ -136,10 +167,26 @@ public class ATMApplication {
 
 
 
-    public void exit() {
+    public boolean exit() {
         Message msg = new AccountMessage(Message.TYPE.EXIT_ACCOUNT, this.session, this.client.getUsername(), this.account.getID());
         handler.send(msg);
-        // return to clientprofile screen
+        try {
+            Message response = handler.getMessage();
+            if (response instanceof SuccessMessage) {
+                 System.out.println("Exited account " + this.account.getID() + " successfully.");
+                 this.account = null; 
+                 return true;
+            } else if (response instanceof FailureMessage) {
+                 System.err.println("Server failed to exit account: " + ((FailureMessage)response).getMessage());
+                 return false;
+            } else {
+                 System.err.println("Unexpected response during account exit.");
+                 return false; 
+            }
+        } catch (Exception e) {
+             System.err.println("Error during exitAccount: " + e.getMessage());
+             return false;
+        }
     }
 
     //------------------------

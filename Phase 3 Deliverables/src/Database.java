@@ -18,8 +18,10 @@ public class Database implements Serializable {
     // id -> account objects
     private final Map<String, Account> accountDatabase = new HashMap<>();
 
+    private int nextAccountId = 1;
     // private constructor
     private Database() {
+        
     }
 
     public static Database getInstance() {
@@ -51,6 +53,15 @@ public class Database implements Serializable {
     // protect singleton-ness of singleton upon server startup
     public Object readResolve() {
         return getInstance();
+    }
+
+    public int getNextAccountId() { 
+        return this.nextAccountId;
+    }
+
+    // this will be called in handleCreateAccount()
+    public void setNextAccountID(int n){
+        this.nextAccountId = n;
     }
 
     public Map<String, String> getTellerDatabase() {

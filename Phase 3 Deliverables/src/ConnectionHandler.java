@@ -12,47 +12,33 @@ public class ConnectionHandler implements Runnable {
     private ObjectOutputStream out;
     private final BlockingQueue<Message> incomingMssg = new LinkedBlockingQueue<>();
     private final BlockingQueue<Message> outgoingMssg = new LinkedBlockingQueue<>();
-    private Thread reader, writer;
+    private Thread reader, writer = null;
     private volatile boolean running = true;
     private volatile boolean loggedOut = false;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     // communicates with LoginApplication
-    private LoginApplication loginApp;
+    //private LoginApplication loginApp;
+    SessionInfo currentSession;
 
     public ConnectionHandler(Socket socket) {
         this.clientSocket = socket;
     }
 
-    // setter for LoginApplication
-    public void setLoginApplication(LoginApplication app) {
-        this.loginApp = app;
-    }
 
     public void setLoggedOut(boolean status) {
         this.loggedOut = status;
     }
+
+    public void setCurrentSession(SessionInfo s){
+        this.currentSession = s;
+    }
+
 
     public void run() {
         try {
             out = new ObjectOutputStream(clientSocket.getOutputStream());
             out.flush();
             in = new ObjectInputStream(clientSocket.getInputStream());
-            
-            // Launch a separate thread for outgoing messages
-            new Thread(() -> {
-                try {
-                    while (!Thread.currentThread().isInterrupted()) {
-                        Message msgToSend = outgoingMssg.take(); // Blocks until a message is available
-                        synchronized (out) {
-                            out.writeObject(msgToSend);
-                            out.flush();
-                        }
-                    }
-                } catch (IOException | InterruptedException e) {
-                    System.err.println("Error sending message: " + e.getMessage());
-                }
-            }).start();
-
             reader = new Thread(this::readLoop);
             writer = new Thread(this::writeLoop);
             reader.start();
@@ -61,9 +47,8 @@ public class ConnectionHandler implements Runnable {
         } catch (IOException e) {
             System.err.println("Connection error: " + e.getMessage());
             // error handler callback
-            if (loginApp != null) {
-                loginApp.handleConnectionError("Connection lost. Please restart the app.");
-            }
+            closed.set(true);
+            running = false;
         } finally {
             try {
                 if (in != null)
@@ -77,96 +62,90 @@ public class ConnectionHandler implements Runnable {
         }
     }
 
-    private void readLoop(){
-        try{
-            while (running){
-                // WILL BLOCK
-                Message msg = (Message) in.readObject();
-
+    private void readLoop() {
+        try {
+            while (running) {
+                Message msg = null;
+                // block and read message
+                try{
+                    msg = (Message) in.readObject();
+                } catch(Exception e){
+                    if (running) {
+                        System.err.println("Unexpected error: " + e.getMessage());
+                        shutDown(); 
+                    }
+                    break;
+                }
                 // handle unsolicited server messages
                 // handle Message.TYPE.SHUTDOWN
                 // handle Message.TYPE.SESSION_TIMEOUT
-                /*if (msg.getType() == Message.Type.SHUTDOWN) {
+                if (msg.getType() == Message.TYPE.SHUTDOWN) {
                     System.out.println("Server-wide shutdown. Sorry for the inconvenience. " );
                     running = false;
                     break;
-                }*/
-                /*if (msg.getType() == Message.Type.SESSION_TIMEOUT) {
-                    System.out.println("440 Session Timeout. " );
-                    running = false;
-                    break;
-                }*/
+                }
+                /*
+                 * if (msg.getType() == Message.Type.SESSION_TIMEOUT) {
+                 * System.out.println("440 Session Timeout. " );
+                 * running = false;
+                 * break;
+                 * }
+                 */
 
                 incomingMssg.put(msg);
             }
-            // EOFException thrown when program tries to read the input stream when it has already been closed
-	        // SocketException thrown when the connection to the server closes unexpectedly
-        }catch (EOFException | SocketException eof) {
-            if (running) { 
-                if (loggedOut) {
-                    System.out.println("You have logged out.");
-                } else {
-                    System.out.println("Server has disconnected.");
-                    if (loginApp != null) {
-                        loginApp.handleConnectionError("Server disconnected.");
-                    }
-                }
-            }
-            // IOException thrown when i/o messes up
-            // ClassNotFoundException from class not found 
-        } catch (IOException | ClassNotFoundException e) {
-            if (running) {
-                System.err.println("ReadLoop error: " + e.getMessage());
-                 if (loginApp != null) {
-                    loginApp.handleConnectionError("ReadLoop error: " + e.getMessage());
-                }
-            }
-
         } catch (InterruptedException e) {
             System.out.println("ReadLoop interrupted.");
             Thread.currentThread().interrupt();
-       } finally {
-            try {
-                if (in != null)
-                    in.close();
-                if (out != null)
-                 out.close();
-                clientSocket.close();
-            } catch (IOException e) {
-                System.err.println("Error closing socket: " + e.getMessage());
+            running = false;
+        } finally {
+            shutDown();
         }
-       }
     }
 
     private void writeLoop() {
         try {
             while (running) {
-                Message msg = outgoingMssg.take(); 
-                out.writeObject(msg);
-                out.flush();
-            }
-        } catch (InterruptedException ie) { 
-             System.out.println("WriteLoop interrupted.");
-             Thread.currentThread().interrupt();
-        } catch (IOException e) { 
-            if (running) {
-                System.err.println("Writeloop error: " + e.getMessage());
-                 if (loginApp != null) {
-                     loginApp.handleConnectionError("Write error: " + e.getMessage());
-                 }
-            }
-        } finally { // will always run after loop ends, regardless of exceptions
-            try {
-                if (in != null)
-                    in.close();
-                if (out != null)
-                 out.close();
-                clientSocket.close();
-            } catch (IOException e) {
-                System.err.println("Error closing socket: " + e.getMessage());
-        }
+                Message msg = null;
+                try{
+                    msg = outgoingMssg.take();
+                } catch (InterruptedException e) {
+                    if(running) System.out.println("WriteLoop interrupted while waiting for message.");
+                    Thread.currentThread().interrupt();
+                    break; 
+                }
+                try{
+                    synchronized (out) {
+                        out.writeObject(msg);
+                        out.flush();
+                    } 
+                }catch (IOException e) {
+                    if (running) {
+                        System.err.println("Write error: " + e.getMessage());
+                        shutDown();
+                    }
+                    break; 
+                }
+            }     
+        } finally { 
+           shutDown();
         }
     }
+
+    // send message of type DISCONNECT to server
+    public void sendDisconnect() {
+        SessionInfo session = this.currentSession;
+        if (session == null) {
+             System.err.println("Cannot DISCONNECT without a current session.");
+             return;
+        }
+        if (!isRunning()) {
+             System.err.println("Cannot DISCONNECT on inactive/closed connection.");
+             return;
+        }
+        outgoingMssg.offer(new DisconnectMessage(session));
+    }
+
 
     public boolean isRunning() {
         return running;
@@ -188,17 +167,17 @@ public class ConnectionHandler implements Runnable {
 
     // end session
     public void shutDown() {
-        if (closed.get() == false) {
+        if (!closed.compareAndSet(false, true)) {
             return;
         }
         System.out.println("Now initiating client-side shutdown");
-        // set running to false
+       
         running = false;
 
         if (reader != null) {
             reader.interrupt();
         }
-        if (writer != null){
+        if (writer != null) {
             writer.interrupt();
         }
 

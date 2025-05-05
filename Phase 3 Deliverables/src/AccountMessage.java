@@ -38,12 +38,11 @@ public final class AccountMessage extends Message {
 	}
 
 	// Constructor for CREATE_NEW_ACCOUNT
-	public AccountMessage(SessionInfo session, String username, ACCOUNT_TYPE type, String creditLim) {
+	public AccountMessage(SessionInfo session, String username, ACCOUNT_TYPE type, String creditLim, int wLimit) {
         super(TYPE.CREATE_ACCOUNT, session); 
 		
 		this.username_owner = username;
         this.account_type = type;
-        this.withdrawLimit = 0;
         this.id = null; 
         this.balance = "0";
         this.transactionHistory = null;
@@ -54,6 +53,12 @@ public final class AccountMessage extends Message {
             this.creditLimit = creditLim;
         } else {
              this.creditLimit = "0";
+		}
+
+		if (type == ACCOUNT_TYPE.SAVING){
+			this.withdrawLimit = wLimit;
+		} else {
+			this.withdrawLimit = 0;
 		}
     }
 

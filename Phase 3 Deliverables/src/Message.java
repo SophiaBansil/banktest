@@ -23,6 +23,7 @@ public abstract class Message implements Serializable {
 	    EXIT_PROFILE,
 	    TRANSACTION,
 	    SHUTDOWN, 
+		DISCONNECT
 	}
 	
 	private final TYPE type;

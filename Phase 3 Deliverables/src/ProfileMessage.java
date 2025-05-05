@@ -20,6 +20,17 @@ public final class ProfileMessage extends Message {
 		this.legalName = "";
 		this.accounts = null;
     }
+
+	// Constructor for requesting EXIT_PROFILE and LOAD_PROFILE
+	public ProfileMessage(TYPE type, SessionInfo session, String name) {
+		super(type, session);
+		this.username = name;
+		this.password = "";
+		this.phone = "";
+		this.address = "";
+		this.legalName = "";
+		this.accounts = null;
+    }
 	
 	// Constructor for sending Profile Information
     public ProfileMessage(TYPE type, 
