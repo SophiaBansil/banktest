@@ -1,29 +1,16 @@
-package bankGUI;
+
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
 
-/**
- * <h2>Teller Profile GUI (v2.0)</h2>
- * <p>
- * *Only* changed the parts that formerly referenced the legacy {@code Account}
- * class or used a username/branch string directly.  The GUI now:
- * </p>
- * <ul>
- *   <li>Accepts a {@link ProfileMessage} so we follow the same pattern as
- *       {@link ATMProfileGUI}.</li>
- *   <li>Uses {@link AccountMessage} for the (stub) edit/create methods instead
- *       of {@code Account}.</li>
- *   <li>Keeps every other line – layout, colours, button wiring – untouched.</li>
- * </ul>
- */
+
 public class TellerProfileGUI extends JFrame {
     private static final long serialVersionUID = 1L;
 
-    /* ------------------------------------------------------------------ */
+   
     /*                     ───  State  ─────────────────────────────────── */
-    /* ------------------------------------------------------------------ */
+    
     private final TellerProfileApplication app;
     private final ProfileMessage           profileMsg; // holds teller info (name, branch, etc.)
 
@@ -31,9 +18,9 @@ public class TellerProfileGUI extends JFrame {
     private static final Color BRAND_DARK  = Color.decode("#00875A");
     private static final Color BRAND_LIGHT = Color.decode("#30C88B");
 
-    /* ------------------------------------------------------------------ */
+    
     /*                     ───  Constructors  ──────────────────────────── */
-    /* ------------------------------------------------------------------ */
+    
 
     public TellerProfileGUI(TellerProfileApplication app, ProfileMessage msg) {
         this.app        = app;
@@ -47,17 +34,17 @@ public class TellerProfileGUI extends JFrame {
         this(app, app.getProfile());
     }
 
-    /* ------------------------------------------------------------------ */
+    
     /*                     ───  Look & feel  ───────────────────────────── */
-    /* ------------------------------------------------------------------ */
+    /
     private void initLookAndFeel() {
         try { UIManager.setLookAndFeel("javax.swing.plaf.nimbus.NimbusLookAndFeel"); }
         catch (Exception ignored) {}
     }
 
-    /* ------------------------------------------------------------------ */
+    
     /*                     ───  Components  ────────────────────────────── */
-    /* ------------------------------------------------------------------ */
+    
     private void initComponents() {
         setTitle("Teller | Bank Application");
         setDefaultCloseOperation(EXIT_ON_CLOSE);
@@ -137,9 +124,9 @@ public class TellerProfileGUI extends JFrame {
         getContentPane().add(centre, BorderLayout.CENTER);
     }
 
-    /* ------------------------------------------------------------------ */
+    
     /*                     ───  Placeholder actions  ───────────────────── */
-    /* ------------------------------------------------------------------ */
+    
 
     /** Displays the teller portal – alias kept for legacy calls. */
     public void Login() { SwingUtilities.invokeLater(() -> setVisible(true)); }
@@ -153,9 +140,9 @@ public class TellerProfileGUI extends JFrame {
     private void saveChanges() {}
     private void exit() { dispose(); }
 
-    /* ------------------------------------------------------------------ */
+    
     /*                     ───  Helpers  ───────────────────────────────── */
-    /* ------------------------------------------------------------------ */
+    
     private JButton stylishButton(String text) {
         JButton btn = new JButton(text);
         btn.setForeground(Color.WHITE);
