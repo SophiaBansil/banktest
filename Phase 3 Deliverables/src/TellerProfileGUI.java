@@ -36,7 +36,7 @@ public class TellerProfileGUI extends JFrame {
 
     
     /*                     ───  Look & feel  ───────────────────────────── */
-    /
+    
     private void initLookAndFeel() {
         try { UIManager.setLookAndFeel("javax.swing.plaf.nimbus.NimbusLookAndFeel"); }
         catch (Exception ignored) {}
