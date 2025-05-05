@@ -220,9 +220,6 @@ public class CentralServer {
 				case LOAD_ACCOUNT:
 					handleLoadAccount((AccountMessage) msg, handler);
 					break;
-				case SAVE_ACCOUNT:
-					handleSaveAccount((AccountMessage) msg, handler);
-					break;
 				case EXIT_ACCOUNT:
 					handleExitAccount((AccountMessage) msg, handler);
 				default:
@@ -533,7 +530,8 @@ public class CentralServer {
 	                s.getBalance(),
 	                s.getTransactionHistory(),
 	                s.getWithdrawCount(),
-	                s.getWithdrawLimit()
+	                s.getWithdrawLimit(),
+					s.getReset()
 	        );
 	    } else if (account instanceof CreditLine l) {
 	        accountMsg = new AccountMessage(
@@ -620,7 +618,7 @@ public class CentralServer {
 		}
 	}
 	
-	private void (AccountMessage msg, ClientHandler handler) {
+	private void handleCreateAccount(AccountMessage msg, ClientHandler handler) {
 		//SessionInfo session = msg.getSession();
 		String username = msg.getUsername();
 	
