@@ -210,9 +210,6 @@ public class CentralServer {
 				case LOAD_PROFILE:
 					handleLoadProfile((ProfileMessage) msg, handler);
 					break;
-				case SAVE_PROFILE:
-					handleSaveProfile((ProfileMessage) msg, handler);
-					break;
 				default:
 					break;
 			}
@@ -262,14 +259,12 @@ public class CentralServer {
 		SessionInfo session = msg.getSession();
 		String username = session.getUsername();
 	
-		// Step 1: Check if client profile exists
 		ClientProfile client = clientDatabase.get(username);
 		if (client == null) {
 			handler.sendMessage(new FailureMessage("Client profile not found."));
 			return;
 		}
 	
-		// Step 2: Create the account based on type (ID is generated inside the constructor)
 		Account newAccount;
 		try {
 			switch (msg.getAccountType()) {
@@ -291,7 +286,7 @@ public class CentralServer {
 			return;
 		}
 
-		// Step 4: Register the account in the system
+		
 		accountDatabase.put(newAccount.getID(), newAccount);
 		client.addAccountID(newAccount.getID());  // Assuming `ClientProfile` has this method
 		accountLocks.putIfAbsent(newAccount.getID(), new ReentrantLock());
@@ -418,22 +413,18 @@ public class CentralServer {
 			return;
 		}
 
-		// Check the lock (this ensures only one active editor)
+		// check if locked
 		ReentrantLock lock = profileLocks.get(username);
 		if (lock == null || !lock.isHeldByCurrentThread()) {
 			handler.sendMessage(new FailureMessage("You do not own the profile lock."));
 			return;
 		}
 
-		// At this point, safe to update
 		current.setPhone(msg.getPhone());
 		current.setAddress(msg.getAddress());
 		current.setLegalName(msg.getLegalName());
-		// You can add password change logic if needed
-		if (session.getRole() == SessionInfo.ROLE.TELLER) {
 			current.setUsername(username);
 			current.setPassword(msg.getPassword());
-		}
 
 		handler.sendMessage(new SuccessMessage("Profile saved successfully."));
 	}

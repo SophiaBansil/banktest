@@ -86,6 +86,7 @@ public class ClientProfileApplication {
         }
 
         if (atmApp != null && selected != null) {
+            atmApp.setClient(profile);
             atmApp.loadAccount(selected.getID()); 
         }
     }

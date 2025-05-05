@@ -7,6 +7,7 @@ public class ATMApplication {
     private ConnectionHandler handler;
     private SessionInfo session;
     private Account account;
+    private ClientProfile client;
     private static final BigDecimal ATM_TRANSACTION_LIMIT = new BigDecimal("9999.99");
 
     public ATMApplication(){
@@ -19,6 +20,10 @@ public class ATMApplication {
 
     public void setSession(SessionInfo s){
         this.session = s;
+    }
+
+    public void setClient(ClientProfile c){
+        this.client = c;
     }
     
     public Account getAccount(){
@@ -84,7 +89,7 @@ public class ATMApplication {
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~` BLOCKS~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     public void loadAccount(String accID) {
-        Message loadAccMsg = new AccountMessage(Message.TYPE.LOAD_ACCOUNT, session, accID );
+        Message loadAccMsg = new AccountMessage(Message.TYPE.LOAD_ACCOUNT, this.session, this.client.getUsername(), accID );
         handler.send(loadAccMsg);
     
         try {
@@ -131,7 +136,7 @@ public class ATMApplication {
 
 
     public void exit() {
-        Message msg = new AccountMessage(Message.TYPE.EXIT_ACCOUNT, this.session, this.account.getID());
+        Message msg = new AccountMessage(Message.TYPE.EXIT_ACCOUNT, this.session, this.client.getUsername(), this.account.getID());
         handler.send(msg);
         // return to clientprofile screen
     }
@@ -183,7 +188,7 @@ public class ATMApplication {
 
         if (account == null) return false;
         // send LOAD_ACCOUNT request
-        AccountMessage requestMsg = new AccountMessage(Message.TYPE.LOAD_ACCOUNT, session, account.getID());
+        AccountMessage requestMsg = new AccountMessage(Message.TYPE.LOAD_ACCOUNT, session, this.client.getUsername(), account.getID());
         handler.send(requestMsg);
         // BLOCK client to wait for response
         try {

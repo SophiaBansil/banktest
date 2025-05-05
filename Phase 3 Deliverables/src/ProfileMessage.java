@@ -39,18 +39,8 @@ public final class ProfileMessage extends Message {
         this.accounts = List.copyOf(accounts);
     }
 
-	// Constructor for creating new Profile STEP 1: valid username
-	public ProfileMessage(SessionInfo session, String usernameToCheck) {
-        super(TYPE.CHECK_USERNAME_AVAILABILITY, session);
-        this.username = usernameToCheck.trim(); 
-        this.password = "";
-        this.phone = "";
-        this.address = "";
-        this.legalName = "";
-        this.accounts = List.copyOf(null);
-    }
 
-	// Constructor for creating new Profile STEP 2: send over new info
+	// Constructor for creating new Profile
 	public ProfileMessage(TYPE type, 
 			SessionInfo session, 
 			String username, 

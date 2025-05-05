@@ -35,6 +35,26 @@ public final class AccountMessage extends Message {
 		this.creditLimit = "0";
 	}
 
+	// Constructor for CREATE_NEW_ACCOUNT
+	public AccountMessage(SessionInfo session, String username, ACCOUNT_TYPE type, String creditLim) {
+        super(TYPE.CREATE_ACCOUNT, session); 
+		
+		this.username_owner = username;
+        this.account_type = type;
+        this.withdrawLimit = 0;
+        this.id = null; 
+        this.balance = "0";
+        this.transactionHistory = null;
+        this.withdrawCount = 0;
+		
+		if (type == ACCOUNT_TYPE.CREDIT_LINE) {
+            
+            this.creditLimit = creditLim;
+        } else {
+             this.creditLimit = "0";
+		}
+    }
+
 	// Constructor for Checking
 	public AccountMessage(TYPE type, 
 			SessionInfo session, 
