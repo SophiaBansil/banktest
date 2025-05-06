@@ -1,66 +1,62 @@
+
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
+import java.math.BigDecimal;
 import java.util.List;
-
+import bankGUI.Message;
+import bankGUI.SessionInfo;
 
 public class ATMProfileGUI extends JFrame {
     private static final long serialVersionUID = 1L;
 
-    
-    /*                     ───  State  ─────────────────────────────────── */
-    
+    /* ─── State ────────────────────────────────────────────────────────── */
     private final ClientProfileApplication profileApp;
-    private final ProfileMessage           profileMsg;   // holds account summaries & personal info
-    private final List<AccountSummary>     accounts;     // list shown on the left
+    private final ATMApplication           atmApp;
+    private final ProfileMessage           profileMsg;
+    private final List<AccountSummary>     accounts;
 
     private JList<AccountSummary> accountList;
     private JLabel idLabel, balanceLabel, sharedLabel;
 
-    /* Brand palette (green → light‑green) */
+    /** Keeps the live balance of the account shown in the details pane */
+    private BigDecimal currentBalance = BigDecimal.ZERO;
+    private String     currentAccountID = null;
+
+    /* Brand palette */
     private static final Color BRAND_DARK  = Color.decode("#00875A");
     private static final Color BRAND_LIGHT = Color.decode("#30C88B");
 
-   
-    /*                     ───  Constructor  ───────────────────────────── */
-
-    
-    public ATMProfileGUI(ClientProfileApplication app, ProfileMessage msg) {
-        this.profileApp = app;
+    /* ─── Constructor ──────────────────────────────────────────────────── */
+    public ATMProfileGUI(ClientProfileApplication profileApp,
+                         ATMApplication atmApp,
+                         ProfileMessage msg) {
+        this.profileApp = profileApp;
+        this.atmApp     = atmApp;
         this.profileMsg = msg;
         this.accounts   = msg.getSummaries();
 
         initLookAndFeel();
         initComponents();
     }
-    
-    public ATMProfileGUI(ClientProfileApplication app) {
-        this(app, null);         
-    }
 
-   
-    /*                     ───  UI Helpers  ────────────────────────────── */
-  
+    /* ─── UI Setup ─────────────────────────────────────────────────────── */
     private void initLookAndFeel() {
         try { UIManager.setLookAndFeel("javax.swing.plaf.nimbus.NimbusLookAndFeel"); }
         catch (Exception ignored) {}
     }
 
     private void initComponents() {
-        /* Frame setup (unchanged) */
         setTitle("ATM & Profile");
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setSize(820, 500);
         setLocationRelativeTo(null);
         setResizable(false);
 
-        /* Gradient background */
         setContentPane(new GradientPanel());
         getContentPane().setLayout(new BorderLayout(10, 10));
 
-       
-        /*  Header (personal info now pulled from ProfileMessage)         */
-        
+        /* Header (personal info) */
         String fullName = profileMsg.getLegalName();
         String phone    = profileMsg.getPhone();
         String username = profileMsg.getUsername();
@@ -70,7 +66,7 @@ public class ATMProfileGUI extends JFrame {
         topPanel.setBorder(new EmptyBorder(5, 10, 5, 10));
 
         JLabel idLabelTop = new JLabel("Bank ID: " + username, SwingConstants.CENTER);
-        JLabel phoneLabel = new JLabel("Phone: "   + phone,    SwingConstants.CENTER);
+        JLabel phoneLabel = new JLabel("Phone: " + phone, SwingConstants.CENTER);
         Font topFont = new Font("Segoe UI", Font.PLAIN, 16);
         idLabelTop.setFont(topFont);
         phoneLabel.setFont(topFont);
@@ -86,13 +82,12 @@ public class ATMProfileGUI extends JFrame {
         logoutBtn.addActionListener(e -> {
             dispose();
             if (profileApp != null) {
-                LoginApplication loginApp = profileApp.getLoginApp();
-                if (loginApp != null) {
-                    LoginGUI gui = new LoginGUI(loginApp);
-                    loginApp.setGUI(gui);
-                    gui.setVisible(true);
-                }
+                try { profileApp.exit(); } catch (Exception ignored) {}
             }
+            LoginApplication loginApp = new LoginApplication();
+            LoginGUI gui = new LoginGUI(loginApp);
+            loginApp.setGUI(gui);
+            gui.setVisible(true);
         });
 
         JPanel headerPanel = new JPanel(new BorderLayout());
@@ -109,9 +104,7 @@ public class ATMProfileGUI extends JFrame {
         overallTopPanel.add(topPanel,    BorderLayout.CENTER);
         getContentPane().add(overallTopPanel, BorderLayout.NORTH);
 
-       
-        /*  Left : AccountSummary list                                    */
-        
+        /* Left : AccountSummary list */
         DefaultListModel<AccountSummary> model = new DefaultListModel<>();
         if (accounts != null) {
             for (AccountSummary a : accounts) model.addElement(a);
@@ -122,8 +115,9 @@ public class ATMProfileGUI extends JFrame {
         accountList.setFixedCellHeight(35);
         accountList.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         accountList.setCellRenderer(new DefaultListCellRenderer() {
-            @Override public Component getListCellRendererComponent(JList<?> list, Object val,
-                    int index, boolean isSelected, boolean cellHasFocus) {
+            @Override public Component getListCellRendererComponent(
+                    JList<?> list, Object val, int index,
+                    boolean isSelected, boolean cellHasFocus) {
                 super.getListCellRendererComponent(list, val, index, isSelected, cellHasFocus);
                 if (val instanceof AccountSummary s) setText(s.getID());
                 setBorder(new EmptyBorder(4, 10, 4, 10));
@@ -132,12 +126,19 @@ public class ATMProfileGUI extends JFrame {
         });
         accountList.addListSelectionListener(e -> {
             AccountSummary sel = accountList.getSelectedValue();
-            if (sel != null) {
-                // Request a full AccountMessage for the selected account
-                AccountMessage msg = profileApp.loadAccount(sel.getID()); // synchronous helper
+            if (sel == null) { updateAccountInfo(null); return; }
+
+            currentAccountID = sel.getID();
+            profileApp.selectAccount(currentAccountID);
+            Account acct = atmApp.getAccount();
+            if (acct != null) {
+                AccountMessage msg = new AccountMessage(
+                        Message.TYPE.LOAD_ACCOUNT,
+                        profileApp.getSession(),
+                        acct.getID(),
+                        acct.getBalance(),
+                        acct.getTransactionHistory());
                 updateAccountInfo(msg);
-            } else {
-                updateAccountInfo(null);
             }
         });
 
@@ -146,10 +147,8 @@ public class ATMProfileGUI extends JFrame {
         scroll.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, BRAND_DARK));
         getContentPane().add(scroll, BorderLayout.WEST);
 
-       
-        /*  Center : account details + actions                            */
-       
-        JPanel infoPanel = new JPanel(new GridLayout(4, 1, 5, 5));
+        /* Centre : account details + actions */
+        JPanel infoPanel = new JPanel(new GridLayout(3, 1, 5, 5));
         infoPanel.setOpaque(false);
         idLabel      = stylisedLabel("Account ID:");
         balanceLabel = stylisedLabel("Balance:");
@@ -161,10 +160,10 @@ public class ATMProfileGUI extends JFrame {
         JButton depositBtn  = stylishButton("Deposit");
         JButton withdrawBtn = stylishButton("Withdraw");
         JButton historyBtn  = stylishButton("History");
-        // Wire these later once AccountMessage actions are in place
-        depositBtn.addActionListener(e -> JOptionPane.showMessageDialog(this, "Deposit popup"));
-        withdrawBtn.addActionListener(e -> JOptionPane.showMessageDialog(this, "Withdraw popup"));
-        historyBtn.addActionListener(e -> JOptionPane.showMessageDialog(this, "History popup"));
+
+        depositBtn.addActionListener(e -> handleDeposit());
+        withdrawBtn.addActionListener(e -> handleWithdraw());
+        historyBtn.addActionListener(e -> atmApp.loadTransactionHistory());
 
         JPanel btnPanel = new JPanel(new FlowLayout());
         btnPanel.setOpaque(false);
@@ -196,31 +195,66 @@ public class ATMProfileGUI extends JFrame {
         cardHolder.add(card);
         getContentPane().add(cardHolder, BorderLayout.CENTER);
 
-        /* Auto‑select first account */
         if (!accounts.isEmpty()) accountList.setSelectedIndex(0);
     }
 
-   
-    /*                     ───  Details refresh  ───────────────────────── */
+    /* ─── Details refresh ──────────────────────────────────────────────── */
     private void updateAccountInfo(AccountMessage msg) {
         if (msg == null) {
             idLabel.setText("Account ID: N/A");
             balanceLabel.setText("Balance: N/A");
             sharedLabel.setText("Shared: N/A");
+            currentBalance = BigDecimal.ZERO;
             return;
         }
         idLabel.setText("Account ID: " + msg.getID());
-        balanceLabel.setText("Balance: " + msg.getBalance());
-        /* Shared logic: if this accountID appears in more than one profile summary */
+        currentBalance = msg.getBalance();
+        balanceLabel.setText("Balance: " + currentBalance);
+
         long owners = profileMsg.getSummaries().stream()
                 .filter(s -> s.getID().equals(msg.getID()))
                 .count();
         sharedLabel.setText("Shared: " + (owners > 1 ? "Yes" : "No"));
     }
 
-    
-    /*                     ───  Utility widgets  ───────────────────────── */
-   
+    /* ─── Handlers ─────────────────────────────────────────────────────── */
+    private void handleDeposit() {
+        if (currentAccountID == null) {
+            JOptionPane.showMessageDialog(this, "Select an account first.");
+            return;
+        }
+        String input = JOptionPane.showInputDialog(this, "Enter amount to deposit:");
+        if (input == null) return;
+
+        if (atmApp.deposit(input)) {
+            BigDecimal newBal = atmApp.getAccount().getBalance();
+            currentBalance = newBal;
+            balanceLabel.setText("Balance: " + newBal);
+            JOptionPane.showMessageDialog(this, "Deposited $" + input);
+        } else {
+            JOptionPane.showMessageDialog(this, "Deposit failed.");
+        }
+    }
+
+    private void handleWithdraw() {
+        if (currentAccountID == null) {
+            JOptionPane.showMessageDialog(this, "Select an account first.");
+            return;
+        }
+        String input = JOptionPane.showInputDialog(this, "Enter amount to withdraw:");
+        if (input == null) return;
+
+        if (atmApp.withdraw(input)) {
+            BigDecimal newBal = atmApp.getAccount().getBalance();
+            currentBalance = newBal;
+            balanceLabel.setText("Balance: " + newBal);
+            JOptionPane.showMessageDialog(this, "Withdrew $" + input);
+        } else {
+            JOptionPane.showMessageDialog(this, "Insufficient funds or limit exceeded.");
+        }
+    }
+
+    /* ─── Utility Widgets ─────────────────────────────────────────────── */
     private JLabel stylisedLabel(String text) {
         JLabel lbl = new JLabel(text, SwingConstants.CENTER);
         lbl.setFont(new Font("Segoe UI", Font.BOLD, 18));
@@ -241,7 +275,6 @@ public class ATMProfileGUI extends JFrame {
         return btn;
     }
 
-    /* Gradient panel */
     private class GradientPanel extends JPanel {
         @Override protected void paintComponent(Graphics g) {
             super.paintComponent(g);
