@@ -1,111 +1,45 @@
-
-
 import java.net.Socket;
 
 public class LoginApplication {
-    private ConnectionHandler handler;  
-    private LoginGUI gui;               // Talks to GUI for showing errors or session timeouts
-    private ClientProfileApplication clientProApp;
-    private ATMApplication ATMApp;
-    private TellerApplication tellerApp;
+    private ConnectionHandler handler;
+    private SessionListener sessionListener;
 
-    // Allows the GUI to be connected to the application logic
-    public void setGUI(LoginGUI gui) {
-        this.gui = gui;
+    public void setSessionListener(SessionListener listener) {
+        this.sessionListener = listener;
     }
 
-    // Allows the MainApp to provide the handler instance (instead of creating it internally)
-    public void setHandler(ConnectionHandler handler) {
-        this.handler = handler;
-    }
-
-    // Called when a connection error happens (server down, socket closed)
-    public void handleConnectionError(String message) {
-        if (gui != null) {
-            gui.showError(message);
-        }
-    }
-
-    // Called when the server sends a timeout (session expired)
-    public void handleSessionTimeout() {
-        if (gui != null) {
-            gui.showError("Session timed out due to inactivity.");
-            gui.Login(); // Restart the login screen
-        }
-    }
-
-    // Sends a login request for a Teller FINISH ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    public void TellerLogin(String user, String pass) {
+    public void login(String user, String pass, boolean isTeller) {
         establishConnection();
-        Message loginMsg = new LoginMessage(Message.TYPE.LOGIN_TELLER, user, pass);
-        handler.send(loginMsg);
+        Message loginMsg = new LoginMessage(
+            isTeller ? Message.TYPE.LOGIN_TELLER : Message.TYPE.LOGIN_CLIENT,
+            user, pass
+        );
+        handler.sendMessage(loginMsg);
 
-        // BLOCK and wait for server response
         try {
-            Message serverResponse = handler.getMessage();
-            if ( serverResponse instanceof SuccessMessage){
-                // cast to successMessage & manage new session ID
-                SuccessMessage msg = (SuccessMessage) serverResponse;
-                SessionInfo session = msg.getSession();
-                handler.setCurrentSession(session);
-                
-                tellerApp = new TellerApplication();
-                tellerApp.setConnectionHandler(handler);
-                tellerApp.setSession(session);
+            Message response = handler.getMessage();
+            if (response instanceof SuccessMessage) {
+                SessionInfo session = ((SuccessMessage) response).getSession();
 
-            }else if (serverResponse instanceof FailureMessage){
-                // cast to FailureMessage
-                FailureMessage msg = (FailureMessage) serverResponse;
-                System.out.println("Error: " + msg.getMessage());
+                if (sessionListener != null) {
+                    sessionListener.onLoginSuccess(session, handler);
+                }
+            } else if (response instanceof FailureMessage) {
+                if (sessionListener != null) {
+                    sessionListener.onLoginFailure(((FailureMessage) response).getMessage());
+                }
             } else {
-                System.out.println("Error: unexpected message type received");
+                if (sessionListener != null) {
+                    sessionListener.onLoginFailure("Unexpected server response.");
+                }
             }
         } catch (Exception e) {
-            System.out.println("Login request interrupted");
-            if (gui != null) gui.showError("Login process interrupted");
-        }
-    }
-
-    // Sends a login request for a Client -- from an ATM
-    public void ClientLogin(String user, String pass) {
-        establishConnection();
-        Message loginMsg = new LoginMessage(Message.TYPE.LOGIN_CLIENT, user, pass);
-        handler.send(loginMsg);
-
-        // BLOCK and wait for server response
-        try {
-            Message serverResponse = handler.getMessage();
-            if (serverResponse.getType() == Message.TYPE.SUCCESS && serverResponse instanceof SuccessMessage){
-                // cast to successMessage & manage new session ID
-                SuccessMessage msg = (SuccessMessage) serverResponse;
-                SessionInfo session = msg.getSession();
-
-                // set up clientProfileApplication with session parameters
-                clientProApp = new ClientProfileApplication();
-                ATMApp = new ATMApplication();
-                clientProApp.setConnectionHandler(handler);
-                clientProApp.setSession(session);
-                ATMApp.setConnectionHandler(handler);
-                ATMApp.setSession(session);
-                clientProApp.setATMApplication(ATMApp);
-
-                clientProApp.requestProfile();
-
-
-            }else if (serverResponse instanceof FailureMessage){
-                // cast to FailureMessage
-                FailureMessage msg = (FailureMessage) serverResponse;
-                System.out.println("Error: " + msg.getMessage());
-            } else {
-                System.out.println("Error: unexpected message type received");
+            if (sessionListener != null) {
+                sessionListener.onLoginFailure("Login failed: " + e.getMessage());
             }
-        } catch (Exception e) {
-            System.out.println("Login request interrupted");
-            if (gui != null) gui.showError("Login process interrupted");
         }
     }
 
-    // Connects to the server and creates the handler if it's not already set
     private void establishConnection() {
         if (handler == null) {
             try {
@@ -113,8 +47,9 @@ public class LoginApplication {
                 handler = new ConnectionHandler(socket);
                 new Thread(handler).start();
             } catch (Exception e) {
-                System.err.println("Failed to connect: " + e.getMessage());
+                System.err.println("Connection failed: " + e.getMessage());
             }
         }
     }
-} 
+}  
+

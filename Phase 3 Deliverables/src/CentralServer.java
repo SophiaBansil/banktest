@@ -1,4 +1,6 @@
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.math.BigDecimal;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -40,9 +42,9 @@ public class CentralServer {
 
 	public CentralServer() {
 		Database fooDB = Database.loadDatabase(saveFile);
-		// load in database info if needed
+		// load in database info
+		Database.loadDatabase(saveFile);
 		if (fooDB == null) {
-			System.out.println("Starting with fresh database");
 			DB = Database.getInstance();
 		} else {
 			this.DB = fooDB;
@@ -52,17 +54,37 @@ public class CentralServer {
 		this.tellerDatabase  = DB.getTellerDatabase();
         this.clientDatabase  = DB.getClientDatabase();
         this.accountDatabase = DB.getAccountDatabase();
+        
+     // Add dummy teller for login testing
+    	tellerDatabase.put("bob", "test");
 	}
 
 	// Runs the actual server
 	public static void main(String[] args) {
 		CentralServer serverInstance = new CentralServer(); // <== Create instance
 
-		// In case the server unexpectedly or forcefully closes
-		Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-			System.out.println("[Server] Shutdown initiated.");
-			serverInstance.serverShutDown();
-		}));
+//		// In case the server unexpectedly or forcefully closes (Doesn't work in JVM)
+//		Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+//			System.out.println("[Server] Shutdown initiated.");
+//			serverInstance.serverShutDown();
+//		}));
+		
+		// Thread to listen for console commands
+	    new Thread(() -> {
+	        try (BufferedReader in = new BufferedReader(new InputStreamReader(System.in))) {
+	            String line;
+	            while ((line = in.readLine()) != null) {
+	                if ("shutdown".equalsIgnoreCase(line.trim())) {
+	                    System.out.println("[Server] Shutdown command received.");
+	                    serverInstance.serverShutDown();
+	                    // exit main loop / JVM
+	                    System.exit(0);
+	                }
+	            }
+	        } catch (IOException e) {
+	            e.printStackTrace();
+	        }
+	    }, "ConsoleListener").start();
 
 		try (ServerSocket server = new ServerSocket(7777)) {
 			System.out.println("[Server] Server Initiated.");
@@ -79,15 +101,6 @@ public class CentralServer {
 			e.printStackTrace();
 		}
 	}
-
-	// helper for new account creation
-	private String generateNewAccountId() {
-        int nextNum = DB.getNextAccountId();
-        String newId = "ACC" + nextNum;
-        DB.setNextAccountID(nextNum + 1); 
-        return newId;
-        
-    }
 
 	public void handleMessage(Message msg, ClientHandler handler) {
 		// handles disconnects (whether authenticated or not)
@@ -128,19 +141,12 @@ public class CentralServer {
 	    // Release locks, cleanup if needed
 	    ReentrantLock profileLock = profileLocks.get(username);
 	    if (profileLock != null && profileLock.isHeldByCurrentThread()) {
-	        try {
-				if (profileLock.getHoldCount() > 0) {
-				   profileLock.unlock();
-				   System.out.println("Released profile lock for: " + username);
-				}
-		   } catch (IllegalMonitorStateException e) {
-				System.err.println("Error releasing profile lock for:  " + username +  e.getMessage());
-		   }
+	        profileLock.unlock();
 	        profileLocks.remove(username); // Clean up
 	    }
 
 	    ClientProfile profile = clientDatabase.get(username);
-	    String[] accountIDs = profile.getAccountIDs().toArray(new String[profile.getAccountIDs().size()]);;
+	    String[] accountIDs = profile.getAccountIDs();
 	    // Handle account lock
 	    for (String accountID : accountIDs) {
 	        ReentrantLock accountLock = accountLocks.get(accountID);
@@ -228,6 +234,9 @@ public class CentralServer {
 				case LOAD_PROFILE:
 					handleLoadProfile((ProfileMessage) msg, handler);
 					break;
+				case SAVE_PROFILE:
+					handleSaveProfile((ProfileMessage) msg, handler);
+					break;
 				default:
 					break;
 			}
@@ -235,6 +244,9 @@ public class CentralServer {
 			switch (msg.getType()) {
 				case LOAD_ACCOUNT:
 					handleLoadAccount((AccountMessage) msg, handler);
+					break;
+				case SAVE_ACCOUNT:
+					handleSaveAccount((AccountMessage) msg, handler);
 					break;
 				case EXIT_ACCOUNT:
 					handleExitAccount((AccountMessage) msg, handler);
@@ -320,23 +332,24 @@ public class CentralServer {
 	}
 
 	private void handleExitProfile(ProfileMessage msg, ClientHandler handler) {
+	    String username = msg.getUsername();
+	    if (username == null) {
+	        handler.sendMessage(new FailureMessage("Missing username."));
+	        return;
+	    }
 
-    	String username = msg.getUsername(); 
+	    ReentrantLock profileLock = profileLocks.get(username);
+	    if (profileLock == null) {
+	        handler.sendMessage(new FailureMessage("No profile lock found to release."));
+	        return;
+	    }
 
-    	if (username == null) {
-        	handler.sendMessage(new FailureMessage("Username missing in exit profile request."));
-        	return;
-    	}
-
-    
-    	boolean released = releaseUserProfileLock(username);
-
-
-    	if (released) {
-        	handler.sendMessage(new SuccessMessage("Exited profile successfully. Lock released."));
-    	} else {
-        	handler.sendMessage(new FailureMessage("Failed to release profile lock (check server logs)."));
-    	}
+	    if (profileLock.isHeldByCurrentThread()) {
+	        profileLock.unlock();
+	        handler.sendMessage(new SuccessMessage("Profile lock released successfully."));
+	    } else {
+	        handler.sendMessage(new FailureMessage("Current thread does not own the profile lock."));
+	    }
 	}
 
 	private void handleDeleteProfile(ProfileMessage msg, ClientHandler handler) {
@@ -354,17 +367,14 @@ public class CentralServer {
 
 		// Lock profile
 		ReentrantLock plock = profileLocks.get(username);
-		plock.lock();
 		if (plock == null || !plock.isHeldByCurrentThread()) {
 			handler.sendMessage(new FailureMessage("You are not authorized to delete this account."));
 			return;
 		}
 
 		try {
-			// remove from db
-			synchronized (clientDatabase) {
-				clientDatabase.remove(username);
-		   }
+			// Remove the profile
+			this.clientDatabase.remove(username);
 			profileLocks.remove(username); // remove lock from map
 
 			handler.sendMessage(new SuccessMessage("Profile deleted successfully."));
@@ -386,18 +396,22 @@ public class CentralServer {
 			return;
 		}
 
-		// check if locked
+		// Check the lock (this ensures only one active editor)
 		ReentrantLock lock = profileLocks.get(username);
 		if (lock == null || !lock.isHeldByCurrentThread()) {
 			handler.sendMessage(new FailureMessage("You do not own the profile lock."));
 			return;
 		}
 
+		// At this point, safe to update
 		current.setPhone(msg.getPhone());
 		current.setAddress(msg.getAddress());
 		current.setLegalName(msg.getLegalName());
+		// You can add password change logic if needed
+		if (session.getRole() == SessionInfo.ROLE.TELLER) {
 			current.setUsername(username);
 			current.setPassword(msg.getPassword());
+		}
 
 		handler.sendMessage(new SuccessMessage("Profile saved successfully."));
 	}
@@ -418,7 +432,7 @@ public class CentralServer {
 
 		// Step 2: Lock profile access
 		// computeIfAbsent handles race conditions
-		ReentrantLock lock = profileLocks.computeIfAbsent(msg.getUsername(), key -> new ReentrantLock());
+		ReentrantLock lock = profileLocks.computeIfAbsent(msg.getUsername(), _ -> new ReentrantLock());
 		if (!lock.tryLock()) {
 			handler.sendMessage(new FailureMessage("Client profile is currently in use."));
 			return;
@@ -537,7 +551,7 @@ public class CentralServer {
 	                username,
 	                c.getID(),
 	                c.getBalance(),
-	                c.getTransactionHistory()
+	                c.getTransHistory()
 	        );
 	    } else if (account instanceof SavingAccount s) {
 	        accountMsg = new AccountMessage(
@@ -546,10 +560,9 @@ public class CentralServer {
 	                username,
 	                s.getID(),
 	                s.getBalance(),
-	                s.getTransactionHistory(),
+	                s.getTransHistory(),
 	                s.getWithdrawCount(),
-	                s.getWithdrawLimit(),
-					s.getReset()
+	                s.getWithdrawLimit()
 	        );
 	    } else if (account instanceof CreditLine l) {
 	        accountMsg = new AccountMessage(
@@ -558,7 +571,7 @@ public class CentralServer {
 	                username,
 	                l.getID(),
 	                l.getBalance(),
-	                l.getTransactionHistory(),
+	                l.getTransHistory(),
 	                l.getCreditLimit()
 	        );
 	    } else {
@@ -637,6 +650,7 @@ public class CentralServer {
 	}
 	
 	private void handleCreateAccount(AccountMessage msg, ClientHandler handler) {
+		//SessionInfo session = msg.getSession();
 		String username = msg.getUsername();
 	
 		// Step 1: Check if client profile exists
@@ -654,11 +668,7 @@ public class CentralServer {
 					newAccount = new CheckingAccount();
 					break;
 				case SAVING:
-					if(msg.getWithdrawLimit() == 0){
-						newAccount = new SavingAccount();	// withdrawal limit will be set to DEFAULT
-					} else{
-						newAccount = new SavingAccount(msg.getWithdrawLimit());
-					}
+					newAccount = new SavingAccount(msg.getWithdrawLimit());
 					break;
 				case CREDIT_LINE:
 		            // Check for a checking account with at least $1000
@@ -685,11 +695,6 @@ public class CentralServer {
 			return;
 		}
 
-		// assign ID
-		String newAccountId = generateNewAccountId(); 
-		newAccount.setID(newAccountId); 
-
-
 		// Step 4: Register the account in the system
 		accountDatabase.put(newAccount.getID(), newAccount);
 		client.addAccountID(newAccount.getID());  // Assuming `ClientProfile` has this method
@@ -701,7 +706,7 @@ public class CentralServer {
 
 	private void handleDeleteAccount(AccountMessage msg, ClientHandler handler) {
 		SessionInfo session = msg.getSession();
-		String username = msg.getUsername();
+		String username = session.getUsername();
 		String accountID = msg.getID();
 
 		// Step 1. Check account exists in database
@@ -723,25 +728,17 @@ public class CentralServer {
 			handler.sendMessage(new FailureMessage("Account not locked for editing."));
 			return;
 		}
-		lock.lock();
 
 		try {
+			// Remove the account
 			ClientProfile profile = this.clientDatabase.get(username);
-			// lock profile and remove acc from profile
-			ReentrantLock profileLock = profileLocks.computeIfAbsent(username, key -> new ReentrantLock());
-            try {
-				profile.removeAccountID(accountID);
-		    } finally {
-				profileLock.unlock();
-		    }
-			// remove acc from database
-            this.accountDatabase.remove(accountID);
-    
-			// remove lock from map
-			accountLocks.remove(accountID); 
+			profile.removeAccountID(accountID);
+			this.accountDatabase.remove(accountID);
+			accountLocks.remove(accountID); // remove lock from map
+
 			handler.sendMessage(new SuccessMessage("Account deleted successfully."));
 		} finally {
-			// unlock
+			// Always unlock even if an error occurs
 			if (lock.isHeldByCurrentThread()) {
 				lock.unlock();
 			}
@@ -749,22 +746,22 @@ public class CentralServer {
 	}
 
 	private void handleExitAccount(AccountMessage msg, ClientHandler handler) {
-		String username = msg.getUsername(); // Client username
-    	String accountId = msg.getID();      // Account being exited
+		String username = msg.getUsername();
+		if (username == null)
+			return;
 
-    	if (accountId == null) {
-        	handler.sendMessage(new FailureMessage("Account ID missing in exit request."));
-        	return;
-    	}
+		String account_id = msg.getID();
+		if (this.clientDatabase.get(username).getAccountID(username) == null)
+			return;
 
-    	boolean released = releaseAccountLock(accountId);
+		// Unlock the profile if this thread holds the lock
+		ReentrantLock accountLock = accountLocks.get(account_id);
+		if (accountLock != null && accountLock.isHeldByCurrentThread()) {
+			accountLock.unlock();
+		}
 
-    	if (released) {
-        handler.sendMessage(new SuccessMessage("Exited account successfully. Lock released."));
-    	} else {
-        handler.sendMessage(new FailureMessage("Failed to release account lock (check server logs)."));
-    }
-		
+		handler.sendMessage(new SuccessMessage(
+				"Account lock released successfully."));
 	}
 
 	private void handleShareAccount(ShareAccountMessage msg, ClientHandler handler) {
@@ -812,8 +809,9 @@ public class CentralServer {
 		}
 
 		// 7) Add the account ID to the target (no lock needed on their side)
-		targetProfile.addAccountID(accountId);
-
+		synchronized (targetProfile) {
+			targetProfile.addAccountID(accountId);
+		}
 
 		// 8) Success!
 		handler.sendMessage(new SuccessMessage(
@@ -840,19 +838,11 @@ public class CentralServer {
 			handler.sendMessage(new FailureMessage("Invalid credentials."));
 			return;
 		}
-		// check sessions
-		for (SessionInfo existingSession : sessionIDs.values()) {
-			if (username.equals(existingSession.getUsername()) && existingSession.getRole() == SessionInfo.ROLE.CLIENT) { 
-				handler.sendMessage(new FailureMessage("User '" + username + "' is already logged in elsewhere.")); 
-				return;
-			}
-	    }
 
 		// Locking this specific profile for login session check
 		profileLocks.putIfAbsent(username, new ReentrantLock());
 		ReentrantLock lock = profileLocks.get(username);
 
-		// check locks
 		if (!lock.tryLock()) {
 			handler.sendMessage(new FailureMessage("Client profile is already in use."));
 			return;
@@ -870,16 +860,10 @@ public class CentralServer {
 		String username = msg.getUsername();
 		String password = msg.getPassword();
 
-		if (username == null || this.tellerDatabase.get(username) != password) {
+		if (username == null || ! this.tellerDatabase.get(username).equals(password)) {
 			handler.sendMessage(new FailureMessage("Invalid credentials."));
 			return;
 		}
-		for (SessionInfo existingSession : sessionIDs.values()) {
-			if (username.equals(existingSession.getUsername()) && existingSession.getRole() == SessionInfo.ROLE.CLIENT) { 
-				handler.sendMessage(new FailureMessage("User '" + username + "' is already logged in elsewhere.")); 
-				return;
-			}
-	    }
 
 		// Locking this specific profile for login session check
 		tellerLocks.putIfAbsent(username, new ReentrantLock());
@@ -889,7 +873,7 @@ public class CentralServer {
 			handler.sendMessage(new FailureMessage("Teller profile is already in use."));
 			return;
 		}
-		
+
 		// Create session info and track it
 		SessionInfo session = new SessionInfo(username, SessionInfo.ROLE.TELLER);
 		sessionIDs.put(session.getSessionID(), session);
@@ -899,44 +883,41 @@ public class CentralServer {
 	}
 
 	private void handleClientLogout(LogoutMessage msg, ClientHandler handler) {
+		// 1) Grab and remove the session
 		SessionInfo session = msg.getSession();
-		String username = session.getUsername();
-
 		sessionIDs.remove(session.getSessionID());
 
-		// unlock profile
+		// 2) Unlock profile
+		String username = msg.getSession().getUsername();
 		if (username != null) {
-			releaseUserProfileLock(username);
-			releaseAllUserAccountLocks(username); 
+			ReentrantLock pLock = profileLocks.get(username);
+			if (pLock != null && pLock.isHeldByCurrentThread()) {
+				pLock.unlock();
+			}
 		}
 
+		// 3) Tell the client it’s logged out—but connection is still open
 		handler.sendMessage(new SuccessMessage("Log Out Successful"));
-		handler.setAuthenticated(false);
 	}
 
 	// Handles Logout for Tellers
 	private void handleTellerLogout(LogoutMessage msg, ClientHandler handler) {
+		// 1) Grab and remove the session
 		SessionInfo session = msg.getSession();
 		if (session != null) {
 			sessionIDs.remove(session.getUsername());
 		}
-		// remove lock on teller profile
-		ReentrantLock lock = tellerLocks.get(session.getUsername());
-            if (lock != null && lock.isLocked()) {
-				try {
-					while (lock.isHeldByCurrentThread() && lock.getHoldCount() > 0) { 
-						 lock.unlock();
-					}
-					if (lock.isLocked()) {
-						 System.err.println("Teller lock for " + session.getUsername() + " still held after logout attempt");
-					} else {
-						 System.out.println("Released teller lock for teller: " +session.getUsername());
-					}
-			   } catch (IllegalMonitorStateException e) {
-					System.err.println("Error releasing teller lock for " + session.getUsername() +  e.getMessage());
-			   }
+		
+		// 2) Remove lock on teller
+		String username = msg.getSession().getUsername();
+		if (username != null) {
+			ReentrantLock pLock = tellerLocks.get(username);
+			if (pLock != null && pLock.isHeldByCurrentThread()) {
+				pLock.unlock();
 			}
-		handler.setAuthenticated(false);
+		}
+		
+		// 3) Tell the teller it’s logged out—but connection is still open
 		handler.sendMessage(new SuccessMessage("Log Out Successful"));
 	}
 
@@ -951,61 +932,6 @@ public class CentralServer {
 		}
 	}
 
-	private boolean releaseUserProfileLock(String username) {
-		if (username == null || username.isBlank()) return false;
-		ReentrantLock profileLock = profileLocks.get(username);
-		boolean released = false;
-		if (profileLock != null && profileLock.isLocked()) { 
-			try {
-				while (profileLock.isLocked() && profileLock.getHoldCount() > 0) {
-					 profileLock.unlock();
-					 released = true;
-				}
-				if (!profileLock.isLocked() && released) {
-					System.out.println("Released profile lock for user: " + username);
-				} else if (profileLock.isLocked() && !released) {
-					System.err.println("Profile lock for " + username + " remains locked after release attempt.");
-				}
-			} catch (IllegalMonitorStateException e) {
-				System.err.println("Error releasing lock for " + username  + e.getMessage());
-			}
-		} 
-		return released;
-	}
-
-	private void releaseAllUserAccountLocks(String username) {
-        ClientProfile profile = clientDatabase.get(username);
-        if (profile != null) {
-            List<String> accountIDs = new ArrayList<>(profile.getAccountIDs()); 
-            for (String accountID : accountIDs) {
-                releaseAccountLock(accountID); 
-        	}
-		}
-    }
-    
-	private boolean releaseAccountLock(String accountId) {
-		if (accountId == null || accountId.isBlank()) return false;
-		ReentrantLock accountLock = accountLocks.get(accountId);
-		boolean released = false;
-		if (accountLock != null && accountLock.isLocked()) { 
-			try {
-				while (accountLock.isLocked() && accountLock.getHoldCount() > 0) {
-					 accountLock.unlock();
-					 released = true; 
-				}
-				if (!accountLock.isLocked() && released) {
-					System.out.println("[Server] Released account lock for account: " + accountId);
-				} else if (accountLock.isLocked() && !released) {
-					System.err.println("Account lock " + accountId + " remains locked after release attempt");
-				}
-			} catch (IllegalMonitorStateException e) {
-				System.err.println("Error releasing account lock for " + accountId + e.getMessage());
-			}
-		} 
-		return released; 
-	}
-
-
 	/** Shut down all clients, save databases, and clear server state */
 	private void serverShutDown() {
 		System.out.println("[Server] Shutting down, notifying clients...");
@@ -1014,6 +940,7 @@ public class CentralServer {
 		for (ClientHandler handler : client_list) {
 			try {
 				handler.sendMessage(new ShutDownMessage());
+				Thread.sleep(100); // give client time to receive
 			} catch (Exception e) {
 				System.err.println("Failed to notify client: " + e.getMessage());
 			} finally {
