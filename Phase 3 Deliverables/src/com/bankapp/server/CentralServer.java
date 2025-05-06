@@ -38,8 +38,9 @@ import com.bankapp.common.Transaction.OPERATION;
 
 public class CentralServer {
 	// file to hold persistent database data
-	private static final String saveFile = "database.ser";
-	private final Database DB;
+	// private static final String saveFile = "src/com/bankapp/server/database.ser";
+	// // ABSOLUTELY MUST HAVE SAME FILEPATH!!
+	// private final Database DB;
 
 	// username -> password
 	private final Map<String, String> tellerDatabase;
@@ -47,6 +48,7 @@ public class CentralServer {
 	private final Map<String, ClientProfile> clientDatabase;
 	// id -> account objects
 	private final Map<String, Account> accountDatabase;
+	private int nextAccountId;
 
 	// session_ids -> sessionInfo
 	private final ConcurrentMap<String, SessionInfo> sessionIDs = new ConcurrentHashMap<>();
@@ -63,69 +65,54 @@ public class CentralServer {
 	private final List<ClientHandler> client_list = new CopyOnWriteArrayList<>();
 
 	public CentralServer() {
-		Database fooDB = Database.loadDatabase(saveFile);
-		// load in database info if needed
-		if (fooDB == null) {
-			System.out.println("Starting with fresh database");
-			DB = Database.getInstance();
-		} else {
-			this.DB = fooDB;
-		}
+		/*
+		 * Database fooDB = Database.loadDatabase(saveFile);
+		 * boolean isFresh = (fooDB == null);
+		 * 
+		 * // load in database info if needed
+		 * if (isFresh) {
+		 * System.out.println("Starting with fresh database");
+		 * DB = Database.getInstance();
+		 * 
+		 * } else {
+		 * this.DB = fooDB;
+		 * }
+		 */
 
 		// initialize data structures owned by CentralServer;
-		this.tellerDatabase = DB.getTellerDatabase();
-		this.clientDatabase = DB.getClientDatabase();
-		this.accountDatabase = DB.getAccountDatabase();
+		this.tellerDatabase = new ConcurrentHashMap<>(); // DB.getTellerDatabase();
+		this.clientDatabase = new ConcurrentHashMap<>(); // DB.getClientDatabase();
+		this.accountDatabase = new ConcurrentHashMap<>();// DB.getAccountDatabase();
 
-		// for debugging
+		// if (isFresh) {
+
 		ClientProfile alice = new ClientProfile(
-			"alice",                      // username
-			"pass123",                    // password
-			"555-0001",                   // phone
-			"123 Maple St.",              // address
-			"Alice Anderson"              // legal name
-		);
+				"alice", "pass123", "555-0001", "123 Maple St.", "Alice Anderson");
 
-		ClientProfile bob = new ClientProfile(
-			"bob",                      // username
-			"password",                    // password
-			"555-0001",                   // phone
-			"123 Maple St.",              // address
-			"Alice Anderson"              // legal name
-		);
-	
-		// Give Alice a checking account with $500
 		CheckingAccount aliceChk = new CheckingAccount();
-		aliceChk.addTransaction(
-			new Transaction("1200.00", Transaction.OPERATION.DEPOSIT)
-		)	;
+		aliceChk.addTransaction(new Transaction("500.00", Transaction.OPERATION.DEPOSIT));
 		String aliceChkId = generateNewAccountId();
 		aliceChk.setID(aliceChkId);
 		accountDatabase.putIfAbsent(aliceChkId, aliceChk);
 		alice.addAccountID(aliceChkId);
-	
-		// And a savings account with $1,200 and default 5 withdrawals/month
-		SavingAccount aliceSav = new SavingAccount();
-		aliceSav.addTransaction(
-    new Transaction("1200.00", Transaction.OPERATION.DEPOSIT)
-)	;
-		String aliceSavId = generateNewAccountId();
-		aliceSav.setID(aliceSavId);
-		accountDatabase.putIfAbsent(aliceSavId, aliceSav);
-		alice.addAccountID(aliceSavId);
-	
-		clientDatabase.put("alice", alice);
 
-		    // Bob only has one checking account with $1,500
-			CheckingAccount bobChk = new CheckingAccount();
-			bobChk.addTransaction(
-				new Transaction("1500.00", Transaction.OPERATION.DEPOSIT)
-			)	;
-			String bobChkId = generateNewAccountId();
-			bobChk.setID(bobChkId);
-			accountDatabase.putIfAbsent(bobChkId, bobChk);
-		
-			clientDatabase.putIfAbsent("bob", bob);
+		clientDatabase.putIfAbsent("alice", alice);
+
+		ClientProfile bob = new ClientProfile(
+				"bob", "password", "555-0002", "456 Oak Ave.", "Bob Brown");
+		CheckingAccount bobChk = new CheckingAccount();
+		bobChk.addTransaction(new Transaction("1500.00", Transaction.OPERATION.DEPOSIT));
+		String bobChkId = generateNewAccountId();
+		bobChk.setID(bobChkId);
+		accountDatabase.putIfAbsent(bobChkId, bobChk);
+		bob.addAccountID(bobChkId);
+
+		clientDatabase.putIfAbsent("bob", bob);
+
+		// teller
+		tellerDatabase.putIfAbsent("teller1", "letmein");
+
+		// }
 	}
 
 	// Runs the actual server
@@ -139,20 +126,20 @@ public class CentralServer {
 		}));
 
 		Thread consoleListener = new Thread(() -> {
-            Scanner scanner = new Scanner(System.in);
-            System.out.println("[Server] Enter 'shutdown' or 'quit' in terminal to stop server.");
-            while (scanner.hasNextLine()) {
-                String line = scanner.nextLine().trim();
-                if (line.equalsIgnoreCase("shutdown") ||
-                    line.equalsIgnoreCase("quit")) {
-                    System.out.println("[Server] Shutdown command received.");
-                    serverInstance.serverShutDown();
-                    System.exit(0);
-                }
-            }
-        });
-        consoleListener.setDaemon(true);  // won’t block JVM exit
-        consoleListener.start();
+			Scanner scanner = new Scanner(System.in);
+			System.out.println("[Server] Enter 'shutdown' or 'quit' in terminal to stop server.");
+			while (scanner.hasNextLine()) {
+				String line = scanner.nextLine().trim();
+				if (line.equalsIgnoreCase("shutdown") ||
+						line.equalsIgnoreCase("quit")) {
+					System.out.println("[Server] Shutdown command received.");
+					serverInstance.serverShutDown();
+					System.exit(0);
+				}
+			}
+		});
+		consoleListener.setDaemon(true); // won’t block JVM exit
+		consoleListener.start();
 
 		try (ServerSocket server = new ServerSocket(7777)) {
 			System.out.println("[Server] Server Initiated on port 7777.");
@@ -170,11 +157,20 @@ public class CentralServer {
 		}
 	}
 
+
+	public int getNextAccountId() { 
+        return this.nextAccountId;
+    }
+
+    // this will be called in handleCreateAccount()
+    public void setNextAccountID(int n){
+        this.nextAccountId = n;
+    }
 	// helper for new account creation
 	private String generateNewAccountId() {
-		int nextNum = DB.getNextAccountId();
+		int nextNum = getNextAccountId();
 		String newId = "ACC" + nextNum;
-		DB.setNextAccountID(nextNum + 1);
+		setNextAccountID(nextNum + 1);
 		return newId;
 
 	}
@@ -404,7 +400,7 @@ public class CentralServer {
 			} else {
 				foo = amount;
 			}
-			Transaction tx = new Transaction(amount.toPlainString(), operation);
+			Transaction tx = new Transaction(foo.toPlainString(), operation);
 			account.addTransaction(tx);
 
 			handler.sendMessage(new SuccessMessage("Transaction applied successfully."));
@@ -926,9 +922,13 @@ public class CentralServer {
 		String password = msg.getPassword();
 
 		ClientProfile profile = this.clientDatabase.get(username);
-		if (profile == null || !profile.getPassword().equals(password)) {
+		if (profile == null ){
+			System.out.printf("[Server] LOGIN FAILED for client '%s'%n", username + "Due to profile == null");
+			return;
+		}
+		if (!profile.getPassword().equals(password)) {
 			handler.sendMessage(new FailureMessage("Invalid credentials."));
-			System.out.printf("[Server] LOGIN FAILED for client '%s'%n", username);
+			System.out.printf("[Server] LOGIN FAILED for client '%s'%n", username + "Due to");
 			return;
 		}
 		// check sessions
@@ -1109,7 +1109,7 @@ public class CentralServer {
 		}
 
 		// 2. save and serialize everything in the Database class
-		Database.getInstance().saveDatabase(saveFile);
+		// Database.getInstance().saveDatabase(saveFile);
 
 		// 3. Clear client handler list
 		client_list.clear();

@@ -56,14 +56,14 @@ public class Database implements Serializable {
 
     // protect singleton-ness of singleton upon server startup
     public Object readResolve() {
-        return getInstance();
+        instance = this;
+        return this;
     }
 
     public int getNextAccountId() { 
         return this.nextAccountId;
     }
 
-    // this will be called in handleCreateAccount()
     public void setNextAccountID(int n){
         this.nextAccountId = n;
     }
