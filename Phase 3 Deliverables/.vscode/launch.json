@@ -1,0 +1,28 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "type": "java",
+        "name": "Run CentralServer",
+        "request": "launch",
+        "mainClass": "com.bankapp.server.CentralServer",
+        "console": "integratedTerminal"
+      },
+      {
+        "type": "java",
+        "name": "Run LoginGUI",
+        "request": "launch",
+        "mainClass": "com.bankapp.client.gui.LoginGUI",
+        "console": "integratedTerminal"
+      }
+    ],
+    "compounds": [
+      {
+        "name": "Server + Client",
+        "configurations": [
+          "Run CentralServer",
+          "Run LoginGUI"
+        ]
+      }
+    ]
+  }

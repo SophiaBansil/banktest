@@ -28,8 +28,7 @@ public class ATMApplication {
     private static final BigDecimal ATM_TRANSACTION_LIMIT = new BigDecimal("9999.99");
 
     public ATMApplication(){
-        this.account = null;
-
+  
     }
     public void setConnectionHandler(ConnectionHandler c){
         this.handler = c;
@@ -49,60 +48,47 @@ public class ATMApplication {
 
     // getter for connectionhandlerand session not needed; already in clientprofileapp
 
-    public boolean withdraw(String amount) {
+    public Message withdraw(String amount) {
         // check that inputted amount is valid
         // cannot enter negative amount
         // cannot withdraw more than $9999 at atm
         try {
 			BigDecimal check = new BigDecimal(amount);
             if (check.compareTo(BigDecimal.ZERO) <= 0) {
-                return false;
+                return new FailureMessage("Error: entered negative number");
             }
             if (check.compareTo(ATM_TRANSACTION_LIMIT) > 0){
                 // print to gui: Please see a Teller for assistance.
-                return false;
+                return new FailureMessage("Amount too high. please see teller");
             }
 		} catch (NumberFormatException e) {
-			return false;
+			return new FailureMessage("Please enter a real number");
 		}
-
-        Boolean result = performTransaction(amount, Transaction.OPERATION.WITHDRAW);
-
-        if (result != false && this.account != null) {
-            return true;
-        } else {
-            return false;
-        }
+        return performTransaction(amount, OPERATION.WITHDRAW);
     }
 
-    public boolean deposit(String amount) {
+    public Message deposit(String amount) {
         //check that inputted amount is valid
         // cannot enter negative amount
         // cannot  deposit more than $9999 at atm
         try {
 			BigDecimal check = new BigDecimal(amount);
             if (check.compareTo(BigDecimal.ZERO) <= 0) {
-                return false;
+                return new FailureMessage("Error: entered negative number");
             }
             if (check.compareTo(ATM_TRANSACTION_LIMIT) > 0){
                 // print to gui: Please see a Teller for assistance.
-                return false;
+                return new FailureMessage("Amount too high. please see teller");
             }	
 		} catch (NumberFormatException e) {
-			return false;
+			return new FailureMessage("Please enter a real number");
 		}
 
-        Boolean result = performTransaction(amount, Transaction.OPERATION.DEPOSIT);
-
-        if (result != false && this.account != null) {
-            return true;
-        } else {
-            return false;
-        }
+        return performTransaction(amount, OPERATION.DEPOSIT);
     }
 
     // loads in all account data once an account is chosen from ClientApplication
-    public Boolean loadAccount(String accID) {
+    public Message loadAccount (String accID) {
         Message loadAccMsg = new AccountMessage(Message.TYPE.LOAD_ACCOUNT, this.session, this.client.getUsername(), accID );
         handler.send(loadAccMsg);
     
@@ -114,50 +100,49 @@ public class ATMApplication {
                 switch (msg.getAccountType()) {
                     case CHECKING:
                         this.account = createCheckingAccount(msg);
-                        break;
+                        return msg;
                     case SAVING:
                         this.account = createSavingAccount(msg);
-                        break;
+                        return msg;
                     case CREDIT_LINE:
                         this.account = createCreditAccount(msg);
-                        break;
+                        return msg;
                     default:
                          // Should not happen if server sends valid type
                         System.err.println("Received unknown account type from server.");
                         this.account = null;
-                        return false;
+                        return new FailureMessage("Please enter a real number");
                 }
-                System.out.println("Account " + this.account.getID() + " loaded successfully.");
-                return true; 
+       
             } else if (serverResponse instanceof FailureMessage) {
                 System.err.println("Failed to load account " + accID + ": " + ((FailureMessage) serverResponse).getMessage());
                 this.account = null; 
-                return false;
+                return serverResponse;
             } else if (serverResponse == null) {
                  System.err.println("Timeout or interruption while waiting for account load response.");
                  this.account = null;
-                 return false;
+                 return serverResponse;
             }
              else {
                 System.err.println("Received something unexpected " + serverResponse.getClass().getName());
                  this.account = null;
-                return false;
+                return serverResponse;
             }
         } catch (Exception e) {
             System.err.println("Error during loadaccount: " + e.getMessage());
              this.account = null;
-            return false;
+            return new FailureMessage("exception during loadaccount");
         }
     }
 
-    public void loadTransactionHistory(){
-        //RELAY TRANSACTION HIST TO GUI
+    public Message loadTransactionHistory(){
+        //return TRANSACTION HIST TO GUI
         if (account == null || account.getTransactionHistory() == null) {
             //gui.showError("No transaction history available");
-            return;
+            return new FailureMessage("There is no history available.");
         }
        
-         try {
+        /*  try {
             // sort transactions by date
             List<Transaction> transactions = new ArrayList<>(account.getTransactionHistory());
             transactions.sort((t1, t2) -> t2.getCreated().compareTo(t1.getCreated()));
@@ -179,11 +164,21 @@ public class ATMApplication {
             } catch (Exception e) {
              // gui.showError("Error formatting transactions: " + e.getMessage());
             }
+        */
+        AccountMessage historyMsg = new AccountMessage(
+        Message.TYPE.LOAD_ACCOUNT,            
+        session,
+        client.getUsername(),                 
+        account.getID(),
+        account.getBalance(),
+        account.getTransactionHistory() );
+        return historyMsg;      
+   
     }
 
 
 
-    public boolean exit() {
+    public Message exit() {
         Message msg = new AccountMessage(Message.TYPE.EXIT_ACCOUNT, this.session, this.client.getUsername(), this.account.getID());
         handler.send(msg);
         try {
@@ -191,17 +186,17 @@ public class ATMApplication {
             if (response instanceof SuccessMessage) {
                  System.out.println("Exited account " + this.account.getID() + " successfully.");
                  this.account = null; 
-                 return true;
+                 return new SuccessMessage(null);
             } else if (response instanceof FailureMessage) {
                  System.err.println("Server failed to exit account: " + ((FailureMessage)response).getMessage());
-                 return false;
+                 return response;
             } else {
                  System.err.println("Unexpected response during account exit.");
-                 return false; 
+                 return response;
             }
         } catch (Exception e) {
              System.err.println("Error during exitAccount: " + e.getMessage());
-             return false;
+             return new FailureMessage("Caught exception during exitAccount");
         }
     }
 
@@ -209,11 +204,8 @@ public class ATMApplication {
     //private helper methods
     //------------------------
 
-    private boolean performTransaction(String amount, Transaction.OPERATION operation) {
-        if (account == null || session == null) {
-            System.out.println("No active account session");
-            return false;
-        }
+    private Message performTransaction(String amount, Transaction.OPERATION operation) {
+
     
         // make transactionMessage
         TransactionMessage transMsg = new TransactionMessage(
@@ -227,22 +219,20 @@ public class ATMApplication {
         // BLOCK and wait for server response
         try {
             Message response = handler.getMessage();
-            
             if (response instanceof SuccessMessage) {
                 // transaction was a success, so refresh local account data
-                boolean refresh = refreshAccount();
-                return refresh;
+                return loadAccount(account.getID());
             } else if (response instanceof FailureMessage) {
                 System.out.println("Transaction failed: " + 
                     ((FailureMessage) response).getMessage());
-                return false;
+                return response;
+            } else{
+                return new FailureMessage("unexpected error in performtransaction");
             }
             
         } catch (Exception e) {
-            System.out.println("Transaction was interrupted");
-        }
+            return new FailureMessage("Transaction error: " + e.getMessage());}
         
-        return false;
     }
     
 

@@ -1,4 +1,6 @@
+package com.bankapp.client;
 
+import com.bankapp.common.SessionInfo;
 public interface SessionListener {
   void onLoginSuccess(SessionInfo session, ConnectionHandler handler);
   void onLoginFailure(String errorMessage);

@@ -3,9 +3,10 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.plaf.basic.BasicToggleButtonUI;
 
+import com.bankapp.client.ATMApplication;
 import com.bankapp.client.ClientProfileApplication;
 import com.bankapp.client.LoginApplication;
-import com.bankapp.client.TellerApplication;
+//import com.bankapp.client.TellerApplication;
 import com.bankapp.common.FailureMessage;
 import com.bankapp.common.Message;
 import com.bankapp.common.ProfileMessage;
@@ -147,10 +148,10 @@ public class LoginGUI extends JFrame {
         );
 
         // Action buttons
-        JButton loginBtn = new JButton("Login");
+        loginBtn = new JButton("Login");
         loginBtn.setFont(new Font("Segoe UI", Font.BOLD, 14));
         loginBtn.addActionListener(this::executeLoginWorker);
-        JButton exitBtn = new JButton("Exit");
+        exitBtn = new JButton("Exit");
         exitBtn.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         exitBtn.addActionListener(e -> loginApp.exitApplication());
         JPanel btnPanel = new JPanel();
@@ -168,6 +169,9 @@ public class LoginGUI extends JFrame {
         center.add(cardsPanel,       BorderLayout.CENTER);
         center.add(btnPanel,         BorderLayout.SOUTH);
         getContentPane().add(center, BorderLayout.CENTER);
+        statusLabel = new JLabel(" ", SwingConstants.CENTER);
+        statusLabel.setBorder(new EmptyBorder(5, 0, 5, 0));
+        getContentPane().add(statusLabel, BorderLayout.SOUTH);
     }
 
 
@@ -233,7 +237,8 @@ public class LoginGUI extends JFrame {
         protected Message doInBackground() throws Exception {
             System.out.println("Starting login for: " + username); // Debug
             if (isTellerLogin) {
-                return loginApp.TellerLogin(username, password);
+                return new FailureMessage("tellerlogin attempt???");
+                //return loginApp.TellerLogin(username, password);
             } else {
                 return loginApp.ClientLogin(username, password);
             }
@@ -304,7 +309,8 @@ public class LoginGUI extends JFrame {
                      setVisible(true); 
                 }
 
-            } else if (session.getRole() == SessionInfo.ROLE.CLIENT) {
+            } else*/
+              if (session.getRole() == SessionInfo.ROLE.CLIENT) {
                 ClientProfileApplication clientApp = loginApp.getClientProfileApp();
                 if (clientApp != null) {
                     loadClientProfileAndShowAtmGui(clientApp);
@@ -317,7 +323,7 @@ public class LoginGUI extends JFrame {
                  showError("Login successful but received unknown user role from server.");
                  resetToLoginScreen();
                  setVisible(true);
-            }*/
+            }
 
         } else if (msg instanceof FailureMessage failMsg) {
             // show error msg from centralserver
@@ -334,23 +340,25 @@ public class LoginGUI extends JFrame {
         }
     }
 
-   /*  private void loadClientProfileAndShowAtmGui(ClientProfileApplication clientApp) {
+    private void loadClientProfileAndShowAtmGui(ClientProfileApplication clientApp) {
         statusLabel.setText("Login successful. Loading profile...");
         statusLabel.setForeground(Color.BLUE);
         setLoginInProgress(true);
 
 
-        SwingWorker<Message, Void> profileLoader = new SwingWorker<>() {
+        new SwingWorker<Message, Void> () {
             protected Message doInBackground() throws Exception {
                 return clientApp.requestProfile();
             }
             protected void done() {
+                setLoginInProgress(false);
                try { 
                 Message result = get();
                     if (result instanceof ProfileMessage profileData) {
                         System.out.println("[LoginGUI] Profile loaded successfully, launching ATM GUI."); 
-                        ATMProfileGUI atmGui = new ATMProfileGUI(clientApp, profileData);
-                        //atmGui.display(); 
+                        ATMApplication atmApp = clientApp.getAtmApplication();
+                        ATMProfileGUI atmGui = new ATMProfileGUI(clientApp, atmApp, profileData);
+                        atmGui.display(); 
                         LoginGUI.this.dispose();
                     } else {
                         // Failed to load profile (requestProfile returned null)
@@ -372,9 +380,9 @@ public class LoginGUI extends JFrame {
                 }
             }
         
-        };
-        profileLoader.execute();
-   }*/
+        }
+        .execute();
+   }
 
     private void setLoginInProgress(boolean inProgress) {
    
@@ -423,5 +431,13 @@ public class LoginGUI extends JFrame {
 
     public void Login() {
         SwingUtilities.invokeLater(() -> setVisible(true));
+    }
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(() -> {
+            LoginApplication app = new LoginApplication();
+            LoginGUI gui = new LoginGUI(app);
+            gui.setVisible(true);
+        });
     }
 }

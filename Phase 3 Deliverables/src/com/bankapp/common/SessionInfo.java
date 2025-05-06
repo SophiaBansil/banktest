@@ -1,7 +1,9 @@
 package com.bankapp.common;
+import java.io.Serializable;
 import java.util.UUID;
 
-public final class SessionInfo {
+public final class SessionInfo implements Serializable {
+	private static final long serialVersionUID = 1L;
 	public enum ROLE {
 		CLIENT,
 		TELLER

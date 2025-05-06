@@ -16,7 +16,7 @@ public class LoginApplication {
     private LoginGUI gui;               // Talks to GUI for showing errors or session timeouts
     private ClientProfileApplication clientProApp;
     private ATMApplication ATMApp;
-    private TellerApplication tellerApp;
+    //private TellerApplication tellerApp;
 
     // Allows the GUI to be connected to the application logic
     public void setGUI(LoginGUI gui) {
@@ -36,14 +36,13 @@ public class LoginApplication {
         return ATMApp;
     }
 
-    public TellerApplication getTellerApp() {
+    /*public TellerApplication getTellerApp() {
         return tellerApp;
-    }
+    }*/
 
 
     // Sends a login request for a Teller FINISH ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    public Message TellerLogin(String user, String pass) {
-        establishConnection();
+   /*  public Message TellerLogin(String user, String pass) {
         if (!establishConnection()) {
             return new FailureMessage("CONNECTION_ERROR: Failed to establish connection to the server.");
         }
@@ -74,11 +73,10 @@ public class LoginApplication {
         } catch (Exception e) {
             return new FailureMessage("CLIENT_ERROR: An error occurred during login: " + e.getMessage());
         }
-    }
+    }*/
 
     // Sends a login request for a Client -- from an ATM
     public Message ClientLogin(String user, String pass) {
-        establishConnection();
         if (!establishConnection()) {
             return new FailureMessage("CONNECTION_ERROR: Failed to establish connection to the server.");
         }
@@ -125,6 +123,7 @@ public class LoginApplication {
                 Socket socket = new Socket("localhost", 7777);
                 handler = new ConnectionHandler(socket);
                 new Thread(handler).start();
+                
                 return true;
             } catch (Exception e) {
                 System.err.println("Failed to connect: " + e.getMessage());
@@ -137,9 +136,16 @@ public class LoginApplication {
     public void exitApplication() {
         System.out.println(" Exit requested.");
         if (handler != null) {
-             handler.shutDown(); 
-             handler = null;
+            try {
+                handler.sendDisconnect();
+                handler.shutDown();
+            } catch (Exception e) {
+                System.err.println("Error while disconnecting: " + e.getMessage());
+            }
+        } else {
+            System.out.println("No active connection to disconnect.");
         }
+        
         System.out.println("Exiting application.");
         System.exit(0); // Terminate the application
    }

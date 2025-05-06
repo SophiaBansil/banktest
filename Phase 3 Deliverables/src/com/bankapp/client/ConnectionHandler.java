@@ -55,17 +55,7 @@ public class ConnectionHandler implements Runnable {
             // error handler callback
             closed.set(true);
             running = false;
-        } finally {
-            try {
-                if (in != null)
-                    in.close();
-                if (out != null)
-                    out.close();
-                clientSocket.close();
-            } catch (IOException e) {
-                System.err.println("Error closing socket: " + e.getMessage());
-            }
-        }
+        } 
     }
 
     private void readLoop() {

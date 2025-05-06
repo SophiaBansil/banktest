@@ -26,6 +26,9 @@ public abstract class Account implements Serializable{
 	public String getID() {
 		return this.id;
 	}
+	public void setBalance(String s){
+		this.balance = new BigDecimal (s);
+	}
 	public List<Transaction> getTransactionHistory() {
 		return this.transactionHistory;
 	}

@@ -4,14 +4,21 @@ import javax.swing.border.EmptyBorder;
 
 import com.bankapp.client.ClientProfileApplication;
 import com.bankapp.client.LoginApplication;
+import com.bankapp.client.ATMApplication;
+import com.bankapp.common.Account;
 import com.bankapp.common.AccountMessage;
 import com.bankapp.common.AccountSummary;
+import com.bankapp.common.FailureMessage;
+import com.bankapp.common.Message;
 import com.bankapp.common.ProfileMessage;
+import com.bankapp.common.SuccessMessage;
+import com.bankapp.common.Transaction;
 
 import java.awt.*;
 import java.math.BigDecimal;
 import java.math.RoundingMode; // Import for formatting currency
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 
 public class ATMProfileGUI extends JFrame {
@@ -34,6 +41,11 @@ public class ATMProfileGUI extends JFrame {
     /* Brand palette */
     private static final Color BRAND_DARK  = Color.decode("#00875A");
     private static final Color BRAND_LIGHT = Color.decode("#30C88B");
+
+    private JButton depositBtn;
+    private JButton withdrawBtn;
+    private JButton historyBtn;
+    private JButton logoutBtn;
 
     /* ─── Constructor ──────────────────────────────────────────────────── */
     public ATMProfileGUI(ClientProfileApplication profileApp,
@@ -97,7 +109,7 @@ public class ATMProfileGUI extends JFrame {
         title.setFont(new Font("Segoe UI", Font.BOLD, 26));
         title.setForeground(Color.WHITE);
 
-        JButton logoutBtn = stylishButton("Logout");
+        logoutBtn = stylishButton("Logout");
         logoutBtn.setBorder(BorderFactory.createLineBorder(Color.WHITE, 1));
         logoutBtn.addActionListener(e -> handleLogout()); // Extracted logout logic
 
@@ -141,22 +153,21 @@ public class ATMProfileGUI extends JFrame {
             @Override public Component getListCellRendererComponent(
                     JList<?> list, Object val, int index,
                     boolean isSelected, boolean cellHasFocus) {
-                // Use 'this' instead of calling super() unnecessarily if overriding text/border
                 JLabel label = (JLabel) super.getListCellRendererComponent(list, val, index, isSelected, cellHasFocus);
                  if (val instanceof AccountSummary s) {
-                     label.setText(s.getID() != null ? s.getID() : "Invalid Account"); // Handle null ID
+                     label.setText(s.getID() != null ? s.getID() : "Invalid Account"); 
                  } else if (val != null) {
-                     label.setText(val.toString()); // Fallback
+                     label.setText(val.toString()); 
                  } else {
-                      label.setText(""); // Handle null value
+                      label.setText(""); 
                   }
                 label.setBorder(new EmptyBorder(4, 10, 4, 10));
                 return label;
             }
         });
         accountList.addListSelectionListener(e -> {
-             if (!e.getValueIsAdjusting()) { // Process selection only when it settles
-                 handleAccountSelection(); // Extracted selection logic
+             if (!e.getValueIsAdjusting()) { 
+                 handleAccountSelection(); 
              }
          });
 
@@ -176,9 +187,9 @@ public class ATMProfileGUI extends JFrame {
         infoPanel.add(balanceLabel);
         infoPanel.add(sharedLabel);
 
-        JButton depositBtn  = stylishButton("Deposit");
-        JButton withdrawBtn = stylishButton("Withdraw");
-        JButton historyBtn  = stylishButton("History");
+        depositBtn  = stylishButton("Deposit");
+        withdrawBtn = stylishButton("Withdraw");
+        historyBtn  = stylishButton("History");
 
         depositBtn.addActionListener(e -> handleDeposit()); // Keep existing handlers
         withdrawBtn.addActionListener(e -> handleWithdraw());
@@ -244,12 +255,56 @@ public class ATMProfileGUI extends JFrame {
           }
 
 
-          currentAccountID = selectedSummary.getID();
-          profileApp.selectAccount(currentAccountID); // This triggers atmApp.loadAccount
-          Account loadedAcct = atmApp.getAccount();
+        currentAccountID = selectedSummary.getID();
+        new SwingWorker<Message,Void>() {
+        @Override
+        protected Message doInBackground() {
+            return profileApp.selectAccount(currentAccountID);
+        }
+
+         protected void done() {
+            try {
+                Message m = get();
+                if (m instanceof AccountMessage am) {
+                    updateAccountInfo(am);
+                } else if (m instanceof FailureMessage fm) {
+             
+                    JOptionPane.showMessageDialog(
+                        ATMProfileGUI.this,
+                        fm.getMessage(),
+                        "Load Account Failed",
+                        JOptionPane.ERROR_MESSAGE
+                    );
+                    updateAccountInfo(null);
+                    currentAccountID = null;
+                } else {
+                    JOptionPane.showMessageDialog(
+                        ATMProfileGUI.this,
+                        "Unexpected response: " + m.getClass().getSimpleName(),
+                        "Error",
+                        JOptionPane.ERROR_MESSAGE
+                    );
+                    updateAccountInfo(null);
+                    currentAccountID = null;
+                }
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(
+                    ATMProfileGUI.this,
+                    "Error loading account: " + ex.getMessage(),
+                    "Error",
+                    JOptionPane.ERROR_MESSAGE
+                );
+                updateAccountInfo(null);
+                currentAccountID = null;
+            } finally {
+                accountList.setEnabled(true);
+            }
+        }
+    }.execute();
+       
 
           // DEBUGGING
-          System.out.println("\n--- Debug handleAccountSelection ---");
+        /*   System.out.println("\n--- Debug handleAccountSelection ---");
           System.out.println("Selected Summary ID: " + selectedSummary.getID());
           System.out.println("currentAccountID variable: " + currentAccountID);
           System.out.println("atmApp.getAccount() result (loadedAcct): " + (loadedAcct == null ? "NULL" : "Account Object"));
@@ -287,7 +342,7 @@ public class ATMProfileGUI extends JFrame {
 
               updateAccountInfo(null);
               currentAccountID = null;
-          }
+          }*/
       }
 
     /* ─── Details refresh ──────────────────────────────────────────────── */
@@ -372,26 +427,48 @@ public class ATMProfileGUI extends JFrame {
 
         if (confirmation == JOptionPane.YES_OPTION) {
             // Perform the deposit using ATMApplication
-            boolean success = atmApp.deposit(input); // Pass original valid input string
+        new SwingWorker<Message,Void>() {
+            @Override
+            protected Message doInBackground() throws Exception {
+                return atmApp.deposit(input);
+            }
 
-            if (success) {
-                // Refresh balance display from the source of truth (atmApp's account)
-                Account updatedAccount = atmApp.getAccount();
-                if (updatedAccount != null) {
-                    BigDecimal newBal = updatedAccount.getBalance();
-                    currentBalance = newBal; // Update internal state
-                    balanceLabel.setText("Balance: " + formatCurrency(newBal)); // Update display
-                    JOptionPane.showMessageDialog(this, "Successfully deposited " + formatCurrency(amountToDeposit) + ".", "Deposit Successful", JOptionPane.INFORMATION_MESSAGE);
-                } else {
-                     // Should not happen if deposit succeeded, but handle defensively
-                     System.err.println("Deposit succeeded but failed to retrieve updated account.");
-                     JOptionPane.showMessageDialog(this, "Deposit processed, but failed to update display.", "Display Error", JOptionPane.WARNING_MESSAGE);
-                 }
-            } else {
-                // Deposit failed (validation failed in ATMApp, though we pre-validated positivity)
-                JOptionPane.showMessageDialog(this, "Deposit failed. Please check the amount and try again.", "Deposit Failed", JOptionPane.ERROR_MESSAGE);
+            @Override
+            protected void done() {
+                depositBtn.setEnabled(true);
+                try {
+                    Message msg = get();  // get() returns the Message from doInBackground()
+                    if (msg instanceof AccountMessage am) {
+                        updateAccountInfo(am);
+                        JOptionPane.showMessageDialog(
+                        ATMProfileGUI.this,
+                        "Successfully deposited " + formatCurrency(amountToDeposit) + ".",
+                         "Deposit Successful",
+                        JOptionPane.INFORMATION_MESSAGE
+                        );
+                    } else {
+                        String failure = (msg instanceof FailureMessage fm)
+                        ? fm.getMessage()
+                        : "Unknown error during deposit.";
+                        JOptionPane.showMessageDialog(
+                        ATMProfileGUI.this,
+                        failure,
+                        "Deposit Failed",
+                        JOptionPane.ERROR_MESSAGE
+                        );
+                    }
+            } catch (InterruptedException | ExecutionException ex) {
+                JOptionPane.showMessageDialog(
+                  ATMProfileGUI.this,
+                  "Error: " + ex.getMessage(),
+                  "Error",  
+                  JOptionPane.ERROR_MESSAGE
+                );
             }
         }
+    }.execute();}
+
+
         // If NO_OPTION or dialog closed, do nothing.
     }
 
@@ -444,35 +521,103 @@ public class ATMProfileGUI extends JFrame {
 
         if (confirmation == JOptionPane.YES_OPTION) {
             // Perform the withdrawal using ATMApplication
-            boolean success = atmApp.withdraw(input); // Pass original valid input string
-
-            if (success) {
-                // Refresh balance display
-                 Account updatedAccount = atmApp.getAccount();
-                 if (updatedAccount != null) {
-                     BigDecimal newBal = updatedAccount.getBalance();
-                     currentBalance = newBal; // Update internal state
-                     balanceLabel.setText("Balance: " + formatCurrency(newBal)); // Update display
-                     JOptionPane.showMessageDialog(this, "Successfully withdrew " + formatCurrency(amountToWithdraw) + ".", "Withdrawal Successful", JOptionPane.INFORMATION_MESSAGE);
-                 } else {
-                     System.err.println("Withdrawal succeeded but failed to retrieve updated account.");
-                     JOptionPane.showMessageDialog(this, "Withdrawal processed, but failed to update display.", "Display Error", JOptionPane.WARNING_MESSAGE);
-                  }
-            } else {
-                // Withdrawal failed (ATMApp handles insufficient funds check)
-                JOptionPane.showMessageDialog(this, "Withdrawal failed. Insufficient funds or amount exceeds limits.", "Withdrawal Failed", JOptionPane.ERROR_MESSAGE);
+            new SwingWorker<Message,Void>() {
+                @Override
+                protected Message doInBackground() throws Exception {
+                    return atmApp.withdraw(input);
+                }
+    
+                @Override
+                protected void done() {
+                    withdrawBtn.setEnabled(true);
+                    try {
+                        Message msg = get();  // get() returns the Message from doInBackground()
+                        if (msg instanceof AccountMessage am) {
+                            updateAccountInfo(am);
+                            JOptionPane.showMessageDialog(
+                            ATMProfileGUI.this,
+                            "Successfully deposited " + formatCurrency(amountToWithdraw) + ".",
+                             "Deposit Successful",
+                            JOptionPane.INFORMATION_MESSAGE
+                            );
+                        } else {
+                            String failure = (msg instanceof FailureMessage fm)
+                            ? fm.getMessage()
+                            : "Unknown error during withdraw.";
+                            JOptionPane.showMessageDialog(
+                            ATMProfileGUI.this,
+                            failure,
+                            "Withdraw Failed",
+                            JOptionPane.ERROR_MESSAGE
+                            );
+                        }
+                } catch (InterruptedException | ExecutionException ex) {
+                    JOptionPane.showMessageDialog(
+                      ATMProfileGUI.this,
+                      "Error: " + ex.getMessage(),
+                      "Error",  
+                      JOptionPane.ERROR_MESSAGE
+                    );
+                }
             }
-        }
+        }.execute();}
+    
         // If NO_OPTION or dialog closed, do nothing.
     }
 
      // --- Extracted History Handling ---
      private void handleHistory() {
         
-         atmApp.loadTransactionHistory();
+        historyBtn.setEnabled(false);
         
          JOptionPane.showMessageDialog(this, "Transaction history printed to console.", "History", JOptionPane.INFORMATION_MESSAGE);
+        new SwingWorker<Message,Void>() {
+            @Override
+            protected Message doInBackground() {
+                return atmApp.loadTransactionHistory();
+            }
 
+            @Override
+            protected void done() {
+                historyBtn.setEnabled(true);
+                try {
+                    Message m = get();
+                    if (m instanceof AccountMessage am) {
+            
+                        List<Transaction> history = am.getTransactionHistory();
+                        history.forEach(System.out::println);
+                        JOptionPane.showMessageDialog(
+                            ATMProfileGUI.this,
+                            "Transaction history printed to console.",
+                            "History",
+                            JOptionPane.INFORMATION_MESSAGE
+                        );
+                    } else if (m instanceof FailureMessage fm) {
+                        // Server told us there was no history or some other error
+                        JOptionPane.showMessageDialog(
+                            ATMProfileGUI.this,
+                            fm.getMessage(),
+                            "History Error",
+                            JOptionPane.ERROR_MESSAGE
+                        );
+                    } else {
+                        JOptionPane.showMessageDialog(
+                            ATMProfileGUI.this,
+                            "Unexpected response: " + m.getClass().getSimpleName(),
+                            "Error",
+                            JOptionPane.ERROR_MESSAGE
+                        );
+                    }
+                } catch (InterruptedException | ExecutionException ex) {
+                    JOptionPane.showMessageDialog(
+                        ATMProfileGUI.this,
+                        "Failed to load history: " + ex.getMessage(),
+                        "Error",
+                        JOptionPane.ERROR_MESSAGE
+                    );
+                }
+            }
+        }.execute();
      }
 
      // --- Extracted Logout Handling ---
@@ -486,25 +631,59 @@ public class ATMProfileGUI extends JFrame {
             JOptionPane.QUESTION_MESSAGE);
 
         if (confirm == JOptionPane.YES_OPTION) {
-            dispose(); // Close the current ATM/Profile window
+            logoutBtn.setEnabled(false);
+        }
 
-            // Call exit on underlying apps if necessary (though dummy apps might not do much)
-             if (atmApp != null) {
-                 try { atmApp.exit(); } catch (Exception ignored) {}
-             }
+             new SwingWorker<Message,Void>() {
+        @Override
+        protected Message doInBackground() {
+            Message result = new SuccessMessage("Logged out");
+            // Tell the ATM side first (if you need to)
+            if (atmApp != null) {
+                result = atmApp.exit();
+            }
+            // Then tell the profile side
             if (profileApp != null) {
-                try { profileApp.exit(); } catch (Exception ignored) {}
+                result = profileApp.exit();
+            }
+            return result;
+        }
+
+        @Override
+        protected void done() {
+            try {
+                Message resp = get();
+                if (resp instanceof FailureMessage fm) {
+                    JOptionPane.showMessageDialog(
+                        ATMProfileGUI.this,
+                        fm.getMessage(),
+                        "Logout Failed",
+                        JOptionPane.ERROR_MESSAGE
+                    );
+                    logoutBtn.setEnabled(true);
+                    return;
+                }
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(
+                    ATMProfileGUI.this,
+                    "Error during logout: " + ex.getMessage(),
+                    "Error",
+                    JOptionPane.ERROR_MESSAGE
+                );
+                logoutBtn.setEnabled(true);
+                return;
             }
 
-            // --- Relaunch Login GUI ---
-            // Create a NEW LoginApplication instance for a fresh login
+            //  spin up a fresh Login GUI
+            dispose();
             LoginApplication loginApp = new LoginApplication();
             LoginGUI loginGui = new LoginGUI(loginApp);
-            loginApp.setGUI(loginGui); // Link the app logic to the new GUI
-            loginGui.Login(); // Make the Login GUI visible using its own method
-            // Or loginGui.setVisible(true);
+            loginApp.setGUI(loginGui);
+            loginGui.setVisible(true);
         }
-     }
+    }.execute();
+
+}
 
     /* ─── Utility Widgets ─────────────────────────────────────────────── */
     private JLabel stylisedLabel(String text) {

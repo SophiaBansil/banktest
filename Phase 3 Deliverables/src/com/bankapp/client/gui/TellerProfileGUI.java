@@ -18,7 +18,7 @@ public class TellerProfileGUI extends JFrame {
    
     /*                     ───  State  ─────────────────────────────────── */
     
-    private final TellerProfileApplication app;
+    private final TellerApplication app;
     private final ProfileMessage           profileMsg; // holds teller info (name, branch, etc.)
 
     /* Palette reused from ATMProfileGUI */
@@ -29,7 +29,7 @@ public class TellerProfileGUI extends JFrame {
     /*                     ───  Constructors  ──────────────────────────── */
     
 
-    public TellerProfileGUI(TellerProfileApplication app, ProfileMessage msg) {
+    public TellerProfileGUI(TellerApplication app, ProfileMessage msg) {
         this.app        = app;
         this.profileMsg = msg;
         initLookAndFeel();
@@ -37,7 +37,7 @@ public class TellerProfileGUI extends JFrame {
     }
 
     // Convenience overload for older call‑sites
-    public TellerProfileGUI(TellerProfileApplication app) {
+    public TellerProfileGUI(TellerApplication app) {
         this(app, app.getProfile());
     }
 

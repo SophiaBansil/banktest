@@ -34,12 +34,16 @@ public class ClientProfileApplication {
         this.session = s;
     }
 
+    public ATMApplication getAtmApplication(){
+        return this.atmApp;
+    }
+
     // this sends request to server for clientProfile info
     // ~~~~~~BLOCKS~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    public void requestProfile(){
+    public Message requestProfile(){
         // create ProfileMessage object to send
-        Message profileMessage = new ProfileMessage(Message.TYPE.LOAD_PROFILE, session);
+        Message profileMessage = new ProfileMessage(Message.TYPE.LOAD_PROFILE, session, session.getUsername());
         // send to server via handler
         handler.send(profileMessage);
 
@@ -57,15 +61,18 @@ public class ClientProfileApplication {
                 msg.getAddress(), 
                 msg.getLegalName());  
                 this.accounts = msg.getSummaries();
+                return msg;
             } else if ( serverResponse.getType() == Message.TYPE.FAILURE && serverResponse instanceof FailureMessage){
                 // cast to FailureMessage
                 FailureMessage msg = (FailureMessage) serverResponse;
-                System.out.println("Error: " + msg.getMessage());
+                return msg;
             } else {
                 System.out.println("Error: unexpected message type received");
+                return new FailureMessage("Error: unexpected message type received");
             }
-        } catch (Exception e) { // ConnectionHandler.getMessage() throws an InterruptedException
+        } catch (Exception e) {
             System.out.println("Request interrupted");
+            return new FailureMessage("Error: request interrupted");
         }
     }
 
@@ -90,7 +97,7 @@ public class ClientProfileApplication {
 
     //this will open up ATMApplication & corresponding GUI page
     // gui will send in selected ID
-    public void selectAccount(String id) {
+    public Message selectAccount(String id) {
         AccountSummary selected = null;
         for (AccountSummary summary : accounts) {
             if (summary.getID().equals(id)) {
@@ -98,15 +105,20 @@ public class ClientProfileApplication {
                 break;
             }
         }
-
-        if (atmApp != null && selected != null) {
-            atmApp.setClient(profile);
-            atmApp.loadAccount(selected.getID()); 
+        if (atmApp == null) {
+            return new FailureMessage("ATM application not initialized.");
         }
+        if (selected == null) {
+            return new FailureMessage("Account does not exist " + id);
+        }
+        
+        atmApp.setClient(profile);
+        return atmApp.loadAccount(selected.getID()); 
+        
     }
 
     //this will return to LoginApplication and Login screen
-    public void exit() {
+    public Message exit() {
         // client-side log out
         Message logoutMsg = new LogoutMessage(
             Message.TYPE.LOGOUT_ATM, 
@@ -119,8 +131,8 @@ public class ClientProfileApplication {
             System.out.println("Logged out successfully: " + ((SuccessMessage) msg).getMessage());
 
         }
-
         handler.setLoggedOut(true);
         handler.shutDown();
+        return new SuccessMessage("shutting down ATM");
     }   
 }
