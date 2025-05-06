@@ -1,14 +1,10 @@
-package bankGUI;
-
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.math.BigDecimal;
 import java.math.RoundingMode; // Import for formatting currency
 import java.util.List;
-// Remove unused imports if any
-// import bankGUI.Message; // Not directly used in this file anymore?
-// import bankGUI.SessionInfo; // Not directly used in this file anymore?
+
 
 public class ATMProfileGUI extends JFrame {
     private static final long serialVersionUID = 1L;
@@ -46,8 +42,7 @@ public class ATMProfileGUI extends JFrame {
 
         if (this.accounts == null) {
              System.err.println("Warning: ProfileMessage contained null account summaries.");
-             // Consider how to handle this - maybe show an error and disable list?
-             // For now, let it proceed, but list population will fail gracefully later.
+             
         }
 
 
@@ -117,7 +112,7 @@ public class ATMProfileGUI extends JFrame {
         // Check if accounts is not null before iterating
         if (accounts != null) {
             for (AccountSummary a : accounts) {
-                 // Also good practice to check if 'a' itself is null if the list allows it
+                 
                  if (a != null) {
                      model.addElement(a);
                  }
@@ -245,7 +240,7 @@ public class ATMProfileGUI extends JFrame {
           profileApp.selectAccount(currentAccountID); // This triggers atmApp.loadAccount
           Account loadedAcct = atmApp.getAccount();
 
-          // --- TARGETED DEBUGGING ---
+          // DEBUGGING
           System.out.println("\n--- Debug handleAccountSelection ---");
           System.out.println("Selected Summary ID: " + selectedSummary.getID());
           System.out.println("currentAccountID variable: " + currentAccountID);
@@ -288,10 +283,10 @@ public class ATMProfileGUI extends JFrame {
       }
 
     /* ─── Details refresh ──────────────────────────────────────────────── */
-    /** Formats BigDecimal to $###,##0.00 */
+    /** Formats BigDecimal */
     private String formatCurrency(BigDecimal amount) {
         if (amount == null) return "N/A";
-        // Using String.format for simple currency formatting
+        
         return String.format("$%,.2f", amount);
     }
 
@@ -302,7 +297,7 @@ public class ATMProfileGUI extends JFrame {
             balanceLabel.setText("Balance: N/A");
             sharedLabel.setText("Shared: N/A");
             currentBalance = BigDecimal.ZERO;
-            currentAccountID = null; // Ensure currentAccountID is cleared
+            currentAccountID = null; // make sure currentAccountID is cleared
         } else {
             idLabel.setText("Account ID: " + msg.getID());
             currentBalance = msg.getBalance(); // Store the precise balance
@@ -337,7 +332,7 @@ public class ATMProfileGUI extends JFrame {
             return;
         }
 
-        // Basic validation (non-empty) - ATMApp handles more detailed validation
+        // Basic validation - ATMApp handles more detailed validation
         if (input.trim().isEmpty()) {
              JOptionPane.showMessageDialog(this, "Please enter a valid amount.", "Invalid Input", JOptionPane.ERROR_MESSAGE);
              return;
@@ -351,15 +346,14 @@ public class ATMProfileGUI extends JFrame {
                  JOptionPane.showMessageDialog(this, "Deposit amount must be positive.", "Invalid Amount", JOptionPane.ERROR_MESSAGE);
                  return;
              }
-            // You could potentially add a check against ATM_TRANSACTION_LIMIT here too if desired,
-            // but atmApp.deposit should handle it.
+            
         } catch (NumberFormatException nfe) {
              JOptionPane.showMessageDialog(this, "Invalid number format entered.", "Invalid Input", JOptionPane.ERROR_MESSAGE);
             return;
         }
 
 
-        // Confirmation Dialog
+        // Confirmation 
         int confirmation = JOptionPane.showConfirmDialog(
             this,
             "Are you sure you want to deposit " + formatCurrency(amountToDeposit) + "?",
@@ -386,7 +380,7 @@ public class ATMProfileGUI extends JFrame {
                      JOptionPane.showMessageDialog(this, "Deposit processed, but failed to update display.", "Display Error", JOptionPane.WARNING_MESSAGE);
                  }
             } else {
-                // Deposit failed (e.g., validation failed in ATMApp, though we pre-validated positivity)
+                // Deposit failed (validation failed in ATMApp, though we pre-validated positivity)
                 JOptionPane.showMessageDialog(this, "Deposit failed. Please check the amount and try again.", "Deposit Failed", JOptionPane.ERROR_MESSAGE);
             }
         }
@@ -420,8 +414,7 @@ public class ATMProfileGUI extends JFrame {
               }
              // Check against current balance display - provides faster feedback
              // Need to check if currentBalance is valid (not zero if no account selected)
-             // This check becomes less meaningful without the initial account selection check
-             // but we keep it as requested to match previous logic structure.
+             
              if (currentBalance != null && amountToWithdraw.compareTo(currentBalance) > 0) {
                   JOptionPane.showMessageDialog(this, "Withdrawal amount exceeds current balance.", "Insufficient Funds", JOptionPane.ERROR_MESSAGE);
                   return;
@@ -467,27 +460,16 @@ public class ATMProfileGUI extends JFrame {
 
      // --- Extracted History Handling ---
      private void handleHistory() {
-         // Removed check if currentAccountID == null to potentially allow viewing history even if no account selected
-         // However, atmApp.loadTransactionHistory() likely requires a loaded account internally.
-         // Keeping the check might be safer depending on atmApp's implementation.
-         // For now, removing it as requested per the "get rid of the feature entirely" instruction.
-
-         // if (currentAccountID == null) {
-         //     JOptionPane.showMessageDialog(this, "Please select an account first to view history.", "No Account Selected", JOptionPane.WARNING_MESSAGE);
-         //     return;
-         // }
-
-         // This currently prints to console based on ATMApplication's method.
-         // A real GUI would likely open a new window/dialog here.
+        
          atmApp.loadTransactionHistory();
-         // Optional: Show a message indicating history was printed to console
+        
          JOptionPane.showMessageDialog(this, "Transaction history printed to console.", "History", JOptionPane.INFORMATION_MESSAGE);
 
      }
 
      // --- Extracted Logout Handling ---
      private void handleLogout() {
-        // Optional: Confirmation dialog for logout
+        // Confirmation dialog for logout
         int confirm = JOptionPane.showConfirmDialog(
             this,
             "Are you sure you want to log out?",
@@ -539,9 +521,9 @@ public class ATMProfileGUI extends JFrame {
         return btn;
     }
 
-    // Inner class GradientPanel should have serialVersionUID
+    // Inner class GradientPanel 
     private class GradientPanel extends JPanel {
-        private static final long serialVersionUID = 1L; // Added serialVersionUID
+        private static final long serialVersionUID = 1L; 
         @Override protected void paintComponent(Graphics g) {
             super.paintComponent(g);
             Graphics2D g2 = (Graphics2D) g;
@@ -553,7 +535,7 @@ public class ATMProfileGUI extends JFrame {
 
     /* Launch helper */
     public void display() {
-        // Ensure GUI operations are on the Event Dispatch Thread
+        
         if (SwingUtilities.isEventDispatchThread()) {
              setVisible(true);
          } else {
@@ -562,4 +544,4 @@ public class ATMProfileGUI extends JFrame {
      }
 
     
-} // End of ATMProfileGUI class
+} 
