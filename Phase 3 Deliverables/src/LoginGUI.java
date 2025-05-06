@@ -1,4 +1,3 @@
-
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.plaf.basic.BasicToggleButtonUI;
@@ -11,14 +10,14 @@ import java.util.List;
 public class LoginGUI extends JFrame {
     private static final long serialVersionUID = 1L;
 
-    // --- Keep loginApp final as in original ---
+    // --- Keep loginApp final ---
     private final LoginApplication loginApp;
     private JToggleButton tellerBtn, clientBtn;
     private JTextField empField, clientField;
     private JPasswordField empPass, clientPass;
 
     public LoginGUI(LoginApplication app) {
-        // --- Keep reference to LoginApplication ---
+        // --- reference to LoginApplication ---
         this.loginApp = app;
         initLookAndFeel();
         initComponents();
@@ -173,19 +172,19 @@ public class LoginGUI extends JFrame {
                 JOptionPane.showMessageDialog(this, "Teller login function called.\n(GUI transition may depend on server response handling).", "Teller Login", JOptionPane.INFORMATION_MESSAGE);
 
             } else {
-                // --- Client Logic: Assume success & proceed directly ---
-                loginApp.ClientLogin(user, pass); // Call the blocking method
-
+                // --- Client Logic: Assume success and proceed directly ---
+                loginApp.ClientLogin(user, pass); 
                
 
-                // Create NEW instances (cannot access ones inside LoginApplication)
-                ClientProfileApplication cApp = new ClientProfileApplication(); // Using dummy or real?
+                // Create NEW instances 
+                ClientProfileApplication cApp = new ClientProfileApplication();
                 ATMApplication atmApp = new ATMApplication();
+                atmApp.setClientProfileApplication(cApp);
 
-                // Explicitly DO NOT/CANNOT set Handler/Session here
+             
 
                 // Request profile data using the new cApp instance
-                cApp.requestProfile(); // Assumes this works synchronously
+                cApp.requestProfile(); 
 
                 // Retrieve data from the new cApp instance
                 ClientProfile fetchedProfile = cApp.getProfile();
@@ -200,12 +199,12 @@ public class LoginGUI extends JFrame {
                 }
 
                 // Construct ProfileMessage (using a FAKE/PLACEHOLDER session)
-                // This is necessary because LoginGUI doesn't receive the real SessionInfo
+                
                 SessionInfo placeholderSession = new SessionInfo(user, SessionInfo.ROLE.CLIENT);
 
                 ProfileMessage profileDataMsg = new ProfileMessage(
-                    Message.TYPE.LOAD_PROFILE, // Or appropriate response type
-                    placeholderSession,        // Using placeholder session
+                    Message.TYPE.LOAD_PROFILE, 
+                    placeholderSession,        
                     fetchedProfile.getUsername(),
                     "", // Password not needed
                     fetchedProfile.getPhone(),
@@ -215,12 +214,12 @@ public class LoginGUI extends JFrame {
                 );
 
                 // Create and display the ATMProfileGUI
-                setVisible(false); // Hide login window first
+                setVisible(false); 
                 ATMProfileGUI gui = new ATMProfileGUI(cApp, atmApp, profileDataMsg);
                 gui.display(); // Show the next screen
 
-                // LoginGUI is now hidden, no need to re-enable button
-                return; // Exit doLogin successfully
+                // LoginGUI is now hidden
+                return; // Exit doLogin 
             }
         } catch (Exception ex) {
             // Catch any unexpected exceptions during the process
