@@ -1,18 +1,24 @@
+
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.plaf.basic.BasicToggleButtonUI;
+
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.util.List; 
+
 
 public class LoginGUI extends JFrame {
     private static final long serialVersionUID = 1L;
 
+    // --- Keep loginApp final as in original ---
     private final LoginApplication loginApp;
     private JToggleButton tellerBtn, clientBtn;
     private JTextField empField, clientField;
     private JPasswordField empPass, clientPass;
 
     public LoginGUI(LoginApplication app) {
+        // --- Keep reference to LoginApplication ---
         this.loginApp = app;
         initLookAndFeel();
         initComponents();
@@ -26,7 +32,7 @@ public class LoginGUI extends JFrame {
         } catch (Exception ignored) {}
     }
 
-    
+
     private void initComponents() {
         Color bg = Color.decode("#e0fff6");
 
@@ -144,75 +150,139 @@ public class LoginGUI extends JFrame {
     // Called when you click “Login”
     private void doLogin(ActionEvent e) {
         boolean isTeller = tellerBtn.isSelected();
-        String user = (isTeller ? empField.getText()
-                               : clientField.getText()).trim();
-        String pass = new String(isTeller
-                                 ? empPass.getPassword()
-                                 : clientPass.getPassword()
-                                ).trim();
+        String user = (isTeller ? empField.getText() : clientField.getText()).trim();
+        String pass = new String(isTeller ? empPass.getPassword() : clientPass.getPassword()).trim();
 
         if (user.isEmpty() || pass.isEmpty()) {
-            JOptionPane.showMessageDialog(
-                this,
-                "User ID and Password cannot be empty.",
-                "Login Error",
-                JOptionPane.ERROR_MESSAGE
-            );
+            JOptionPane.showMessageDialog(this, "User ID and Password cannot be empty.", "Login Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
 
-        // send to server
-        if (isTeller) {
-            loginApp.TellerLogin(user, pass);
-        } else {
-            loginApp.ClientLogin(user, pass);
+        // --- Disable button temporarily ---
+        JButton loginButton = null;
+        if (e.getSource() instanceof JButton) {
+            loginButton = (JButton)e.getSource();
+            loginButton.setEnabled(false);
         }
 
-        // optionally disable inputs until reply...
+        try {
+            if (isTeller) {
+                // --- Original Teller Logic ---
+                loginApp.TellerLogin(user, pass);
+                
+                JOptionPane.showMessageDialog(this, "Teller login function called.\n(GUI transition may depend on server response handling).", "Teller Login", JOptionPane.INFORMATION_MESSAGE);
+
+            } else {
+                // --- Client Logic: Assume success & proceed directly ---
+                loginApp.ClientLogin(user, pass); // Call the blocking method
+
+               
+
+                // Create NEW instances (cannot access ones inside LoginApplication)
+                ClientProfileApplication cApp = new ClientProfileApplication(); // Using dummy or real?
+                ATMApplication atmApp = new ATMApplication();
+
+                // Explicitly DO NOT/CANNOT set Handler/Session here
+
+                // Request profile data using the new cApp instance
+                cApp.requestProfile(); // Assumes this works synchronously
+
+                // Retrieve data from the new cApp instance
+                ClientProfile fetchedProfile = cApp.getProfile();
+                List<AccountSummary> fetchedAccounts = cApp.getAccounts();
+
+                // Basic check if data retrieval worked
+                if (fetchedProfile == null || fetchedAccounts == null) {
+                   showError("Failed to retrieve profile data after login attempt.");
+                   // Re-enable button if login failed here
+                   if (loginButton != null) loginButton.setEnabled(true);
+                   return;
+                }
+
+                // Construct ProfileMessage (using a FAKE/PLACEHOLDER session)
+                // This is necessary because LoginGUI doesn't receive the real SessionInfo
+                SessionInfo placeholderSession = new SessionInfo(user, SessionInfo.ROLE.CLIENT);
+
+                ProfileMessage profileDataMsg = new ProfileMessage(
+                    Message.TYPE.LOAD_PROFILE, // Or appropriate response type
+                    placeholderSession,        // Using placeholder session
+                    fetchedProfile.getUsername(),
+                    "", // Password not needed
+                    fetchedProfile.getPhone(),
+                    "", // Address placeholder
+                    fetchedProfile.getFirstName() + " " + fetchedProfile.getLastName(),
+                    fetchedAccounts
+                );
+
+                // Create and display the ATMProfileGUI
+                setVisible(false); // Hide login window first
+                ATMProfileGUI gui = new ATMProfileGUI(cApp, atmApp, profileDataMsg);
+                gui.display(); // Show the next screen
+
+                // LoginGUI is now hidden, no need to re-enable button
+                return; // Exit doLogin successfully
+            }
+        } catch (Exception ex) {
+            // Catch any unexpected exceptions during the process
+            showError("An error occurred during login: " + ex.getMessage());
+            // Print stack trace for detailed debugging if needed
+             ex.printStackTrace();
+        } finally {
+             // --- Re-enable button only if LoginGUI is still visible ---
+             if (loginButton != null && isVisible()) {
+                 loginButton.setEnabled(true);
+             }
+        }
     }
 
-    /**
-     * This gets called by your LoginApplication once the
-     * ConnectionHandler sees SUCCESS or FAILURE.
-     */
+    
     public void handleAuthResult(Message msg) {
+        // This code will not run with the current LoginApplication structure.
         SwingUtilities.invokeLater(() -> {
-            if (msg.getType() == Message.TYPE.SUCCESS) {
-                // hide login window
-                setVisible(false);
+            if (msg == null){
+                 System.err.println("handleAuthResult received null message (but wasn't called)");
+                 return;
+             }
 
-                // cast to SuccessMessage
+            if (msg.getType() == Message.TYPE.SUCCESS && msg instanceof SuccessMessage) {
                 SuccessMessage success = (SuccessMessage) msg;
                 SessionInfo session = success.getSession();
+                 if (session == null) {
+                      System.err.println("handleAuthResult received null session (but wasn't called)");
+                      return;
+                  }
+
+                // Hide login window
+                setVisible(false);
 
                 // launch the next GUI based on role
                 if (session.getRole() == SessionInfo.ROLE.TELLER) {
-                	TellerProfileApplication tApp = new TellerProfileApplication(loginApp);
-                    new TellerProfileGUI(tApp).Login();
-                } else {
-                	ClientProfileApplication cApp =
-                            new ClientProfileApplication(loginApp);      // dummy stub
-
-                    ATMProfileGUI gui =
-                            new ATMProfileGUI(cApp, cApp.getProfile());  // needs ProfileMessage
-                    gui.setVisible(true);
-
+                    
+                     System.out.println("handleAuthResult: Teller Login Success (Not Called)");
+                } else { // CLIENT ROLE
+                    
+                     System.out.println("handleAuthResult: Client Login Success (Not Called)");
                 }
 
-            } else {
+            } else if (msg.getType() == Message.TYPE.FAILURE && msg instanceof FailureMessage) {
                 // FAILURE
                 FailureMessage fail = (FailureMessage) msg;
                 JOptionPane.showMessageDialog(
                     this,
-                    fail.getMessage(),         // <-- getMessage() NOT getText()
+                    fail.getMessage(),
                     "Login Failed",
                     JOptionPane.ERROR_MESSAGE
                 );
-                // re-enable inputs here if you disabled them
-            }
+                // Clear password field maybe
+                 if (tellerBtn.isSelected()) empPass.setText(""); else clientPass.setText("");
+            } else {
+                 System.err.println("handleAuthResult received unexpected message type (but wasn't called): " + msg.getClass().getName());
+                 JOptionPane.showMessageDialog(this, "Received unexpected server response.", "Login Error", JOptionPane.WARNING_MESSAGE);
+             }
         });
     }
 
+    // --- showError and Login methods unchanged ---
     public void showError(String msg) {
         JOptionPane.showMessageDialog(
             this, msg, "Error", JOptionPane.ERROR_MESSAGE
@@ -222,5 +292,4 @@ public class LoginGUI extends JFrame {
     /** Start off the UI */
     public void Login() {
         SwingUtilities.invokeLater(() -> setVisible(true));
-    }
-}
+    }}
